@@ -74,6 +74,13 @@ class MQTTClient:
             self.subscribe(self.app.config['MQTT_TOPIC_HUMIDITY'])
             self.subscribe(self.app.config['MQTT_TOPIC_LIGHT'])
             self.subscribe(self.app.config['MQTT_TOPIC_DEVICE_STATUS'])
+            
+            # Subscribe to legacy topics for backward compatibility
+            if hasattr(self.app.config, 'MQTT_LEGACY_TOPIC_TEMPERATURE'):
+                self.subscribe(self.app.config['MQTT_LEGACY_TOPIC_TEMPERATURE'])
+                self.subscribe(self.app.config['MQTT_LEGACY_TOPIC_HUMIDITY'])
+                self.subscribe(self.app.config['MQTT_LEGACY_TOPIC_LIGHT'])
+                self.subscribe(self.app.config['MQTT_LEGACY_TOPIC_DEVICE_STATUS'])
         else:
             self.is_connected = False
             self.logger.error(f"Failed to connect to MQTT broker with result code {rc}")
@@ -96,12 +103,16 @@ class MQTTClient:
             # Process message based on topic
             from models import Device, SensorData, db
             
-            # Extract location and measurement type from topic
-            # Example topic: home/living_room/temperature
+            # Extract floor, location and measurement type from topic
+            # Example topic: home/floor1/living_room/temperature
             parts = topic.split('/')
-            if len(parts) >= 3:
-                location = parts[1]
-                measurement_type = parts[2]
+            if len(parts) >= 4:  # Format: home/floorX/location/type
+                floor_str = parts[1]
+                location = parts[2]
+                measurement_type = parts[3]
+                
+                # Extract floor number from string (e.g., "floor1" -> 1)
+                floor = int(floor_str.replace('floor', '')) if 'floor' in floor_str else 1
                 
                 # Try to parse payload as JSON
                 try:
@@ -110,8 +121,9 @@ class MQTTClient:
                     data = {"value": payload}
                 
                 with self.app.app_context():
-                    # Find device by location and type
+                    # Find device by floor, location and type
                     device = Device.query.filter_by(
+                        floor=floor,
                         location=location, 
                         type=measurement_type
                     ).first()
@@ -138,6 +150,7 @@ class MQTTClient:
                             update_data = {
                                 'device_id': device.device_id,
                                 'device_name': device.name,
+                                'floor': device.floor,
                                 'location': device.location,
                                 'type': device.type,
                                 'value': value,
@@ -161,12 +174,28 @@ class MQTTClient:
                                 'device_status', 
                                 {
                                     'device_id': device.device_id,
+                                    'floor': device.floor,
+                                    'location': device.location,
                                     'status': status,
                                     'timestamp': datetime.utcnow().isoformat()
                                 }
                             )
                         
                         db.session.commit()
+                    elif len(parts) >= 3:  # Try old format: home/location/type
+                        # For backward compatibility
+                        location = parts[1]
+                        measurement_type = parts[2]
+                        
+                        device = Device.query.filter_by(
+                            location=location, 
+                            type=measurement_type
+                        ).first()
+                        
+                        if device:
+                            # Process device as before
+                            # ...existing code for processing device...
+                            pass
                         
         except Exception as e:
             self.logger.error(f"Error processing MQTT message: {e}")

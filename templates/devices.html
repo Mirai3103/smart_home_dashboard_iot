@@ -28,6 +28,14 @@ endblock %} {% block content %}
           id="deviceSearch"
           placeholder="Search devices..."
         />
+        <button
+          class="btn btn-outline-secondary"
+          type="button"
+          id="clearSearch"
+          style="display: none"
+        >
+          <i class="fas fa-times"></i>
+        </button>
         <button class="btn btn-outline-secondary" type="button">
           <i class="fas fa-search"></i>
         </button>
@@ -476,6 +484,77 @@ endblock %} {% block content %}
     // Initialize charts for device statistics
     initDeviceStatisticsCharts();
 
+    // Handle device search
+    const searchInput = document.getElementById('deviceSearch');
+    const clearSearchBtn = document.getElementById('clearSearch');
+
+    searchInput.addEventListener('keyup', function () {
+      performSearch();
+    });
+
+    clearSearchBtn.addEventListener('click', function () {
+      searchInput.value = '';
+      clearSearchBtn.style.display = 'none';
+      performSearch();
+    });
+
+    function performSearch() {
+      const searchQuery = searchInput.value.toLowerCase().trim();
+      const tableRows = document.querySelectorAll('tbody tr');
+      let resultsFound = false;
+
+      // Show/hide clear button
+      if (searchQuery.length > 0) {
+        clearSearchBtn.style.display = 'block';
+      } else {
+        clearSearchBtn.style.display = 'none';
+      }
+
+      tableRows.forEach((row) => {
+        const deviceName = row.cells[1].textContent.toLowerCase();
+        const deviceId = row.cells[2].textContent.toLowerCase();
+        const deviceType = row.cells[3].textContent.toLowerCase();
+        const deviceLocation = row.cells[4].textContent.toLowerCase();
+
+        if (
+          deviceName.includes(searchQuery) ||
+          deviceId.includes(searchQuery) ||
+          deviceType.includes(searchQuery) ||
+          deviceLocation.includes(searchQuery)
+        ) {
+          row.style.display = '';
+          resultsFound = true;
+        } else {
+          row.style.display = 'none';
+        }
+      });
+
+      // Show/hide no results message
+      let noResultsMsg = document.getElementById('noSearchResults');
+      if (!resultsFound && searchQuery.length > 0) {
+        if (!noResultsMsg) {
+          noResultsMsg = document.createElement('tr');
+          noResultsMsg.id = 'noSearchResults';
+          noResultsMsg.innerHTML = `
+            <td colspan="7" class="text-center py-4">
+              <div class="alert alert-info mb-0">
+                <i class="fas fa-search me-2"></i>
+                No devices found matching "<b>${searchQuery}</b>"
+              </div>
+            </td>
+          `;
+          document.querySelector('tbody').appendChild(noResultsMsg);
+        } else {
+          noResultsMsg.querySelector('.alert').innerHTML = `
+            <i class="fas fa-search me-2"></i>
+            No devices found matching "<b>${searchQuery}</b>"
+          `;
+        }
+      } else if (noResultsMsg) {
+        noResultsMsg.remove();
+      }
+    }
+
     // Handle add device form submission
     document
       .getElementById('saveNewDevice')
@@ -680,32 +759,6 @@ endblock %} {% block content %}
       .addEventListener('click', function () {
         const deviceId = this.getAttribute('data-device-id');
         window.location.href = `/history?device=${deviceId}`;
-      });
-
-    // Handle device search
-    document
-      .getElementById('deviceSearch')
-      .addEventListener('keyup', function () {
-        const searchQuery = this.value.toLowerCase();
-        const tableRows = document.querySelectorAll('tbody tr');
-
-        tableRows.forEach((row) => {
-          const deviceName = row.cells[1].textContent.toLowerCase();
-          const deviceId = row.cells[2].textContent.toLowerCase();
-          const deviceType = row.cells[3].textContent.toLowerCase();
-          const deviceLocation = row.cells[4].textContent.toLowerCase();
-
-          if (
-            deviceName.includes(searchQuery) ||
-            deviceId.includes(searchQuery) ||
-            deviceType.includes(searchQuery) ||
-            deviceLocation.includes(searchQuery)
-          ) {
-            row.style.display = '';
-          } else {
-            row.style.display = 'none';
-          }
-        });
       });
 
     // Initialize device statistics charts

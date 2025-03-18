@@ -21,11 +21,17 @@ class Config:
     MQTT_CLIENT_ID = os.environ.get('MQTT_CLIENT_ID') or 'smart_home_dashboard'
     
     # MQTT topics
-    MQTT_TOPIC_TEMPERATURE = 'home/+/temperature'
-    MQTT_TOPIC_HUMIDITY = 'home/+/humidity'
-    MQTT_TOPIC_LIGHT = 'home/+/light'
-    MQTT_TOPIC_DEVICE_STATUS = 'home/+/status'
-    MQTT_TOPIC_DEVICE_CONTROL = 'home/+/control'
+    MQTT_TOPIC_TEMPERATURE = 'home/+/+/temperature'  # Updated for floor: home/floorX/room/temperature
+    MQTT_TOPIC_HUMIDITY = 'home/+/+/humidity'
+    MQTT_TOPIC_LIGHT = 'home/+/+/light'
+    MQTT_TOPIC_DEVICE_STATUS = 'home/+/+/status'
+    MQTT_TOPIC_DEVICE_CONTROL = 'home/+/+/control'
+    
+    # Legacy topics (for backward compatibility)
+    MQTT_LEGACY_TOPIC_TEMPERATURE = 'home/+/temperature'
+    MQTT_LEGACY_TOPIC_HUMIDITY = 'home/+/humidity'
+    MQTT_LEGACY_TOPIC_LIGHT = 'home/+/light'
+    MQTT_LEGACY_TOPIC_DEVICE_STATUS = 'home/+/status'
     
     # Other settings
     DATA_RETENTION_DAYS = 30  # Default data retention period
