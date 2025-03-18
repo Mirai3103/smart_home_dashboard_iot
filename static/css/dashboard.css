@@ -1,0 +1,238 @@
+/* Dashboard specific styles */
+.dashboard-header {
+  margin-bottom: 2rem;
+}
+
+.dashboard-header h1 {
+  font-weight: 700;
+  color: var(--dark-color);
+  margin-bottom: 0.5rem;
+}
+
+.dashboard-header p {
+  color: var(--gray-color);
+}
+
+.dashboard-stats {
+  margin-bottom: 2rem;
+}
+
+.stat-card {
+  background-color: #fff;
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow);
+  padding: 1.5rem;
+  text-align: center;
+  height: 100%;
+}
+
+.stat-card-icon {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+}
+
+.stat-card-title {
+  font-size: 0.9rem;
+  color: var(--gray-color);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.stat-card-value {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-top: 0.5rem;
+  color: var(--dark-color);
+}
+
+.devices-container {
+  margin-bottom: 2rem;
+}
+
+.device-detail {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.device-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.device-detail-title {
+  font-weight: 600;
+  margin-bottom: 0;
+}
+
+.device-detail-controls {
+  margin-top: auto;
+  padding-top: 1rem;
+}
+
+.sensor-value-large {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem 0;
+}
+
+.sensor-value-large .value {
+  font-size: 3.5rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--dark-color);
+}
+
+.sensor-value-large .unit {
+  font-size: 1.2rem;
+  color: var(--gray-color);
+  margin-left: 0.3rem;
+}
+
+.sensor-value-large .timestamp {
+  font-size: 0.8rem;
+  color: var(--gray-color);
+  margin-top: 0.5rem;
+}
+
+.device-toggle {
+  cursor: pointer;
+  position: relative;
+  display: inline-block;
+  width: 60px;
+  height: 34px;
+}
+
+.device-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.device-toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--gray-color);
+  transition: var(--transition);
+  border-radius: 34px;
+}
+
+.device-toggle-slider:before {
+  position: absolute;
+  content: '';
+  height: 26px;
+  width: 26px;
+  left: 4px;
+  bottom: 4px;
+  background-color: white;
+  transition: var(--transition);
+  border-radius: 50%;
+}
+
+.device-toggle input:checked + .device-toggle-slider {
+  background-color: var(--secondary-color);
+}
+
+.device-toggle input:checked + .device-toggle-slider:before {
+  transform: translateX(26px);
+}
+
+.range-control {
+  width: 100%;
+  margin: 1rem 0;
+}
+
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.chart-options {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.timeline-chart-container {
+  height: 400px;
+  margin-bottom: 2rem;
+}
+
+.rooms-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.room-card {
+  background-color: #fff;
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow);
+  padding: 1.5rem;
+  height: 100%;
+}
+
+.room-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.room-icon {
+  font-size: 1.5rem;
+  margin-right: 1rem;
+  color: var(--primary-color);
+  background-color: rgba(52, 152, 219, 0.1);
+  padding: 0.8rem;
+  border-radius: 50%;
+}
+
+.room-title {
+  font-weight: 600;
+  margin-bottom: 0;
+}
+
+.room-devices {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 1rem;
+}
+
+.room-device {
+  text-align: center;
+  padding: 1rem;
+  border-radius: var(--border-radius);
+  background-color: rgba(0, 0, 0, 0.02);
+  transition: var(--transition);
+}
+
+.room-device:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.room-device-icon {
+  font-size: 1.8rem;
+  margin-bottom: 0.5rem;
+  color: var(--dark-color);
+}
+
+.room-device-value {
+  font-weight: 700;
+  font-size: 1.2rem;
+}
+
+.room-device-name {
+  font-size: 0.8rem;
+  color: var(--gray-color);
+  margin-top: 0.3rem;
+}

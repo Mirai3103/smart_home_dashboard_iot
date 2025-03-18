@@ -1,0 +1,1047 @@
+{% extends "base.html" %} {% block title %}Smart Home Dashboard - Devices{%
+endblock %} {% block content %}
+<div class="row mt-4 mb-4">
+  <div class="col-md-6">
+    <h1><i class="fas fa-microchip me-2"></i>Devices</h1>
+    <p class="text-muted">Manage your connected devices</p>
+  </div>
+  <div class="col-md-6 text-md-end">
+    <button
+      class="btn btn-primary"
+      data-bs-toggle="modal"
+      data-bs-target="#addDeviceModal"
+    >
+      <i class="fas fa-plus me-1"></i> Add New Device
+    </button>
+  </div>
+</div>
+
+<!-- Devices Table -->
+<div class="card">
+  <div class="card-header">
+    <div class="d-flex justify-content-between align-items-center">
+      <h5 class="mb-0">All Devices</h5>
+      <div class="input-group" style="width: 300px">
+        <input
+          type="text"
+          class="form-control"
+          id="deviceSearch"
+          placeholder="Search devices..."
+        />
+        <button class="btn btn-outline-secondary" type="button">
+          <i class="fas fa-search"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-striped table-hover">
+        <thead>
+          <tr>
+            <th scope="col">Status</th>
+            <th scope="col">Name</th>
+            <th scope="col">Device ID</th>
+            <th scope="col">Type</th>
+            <th scope="col">Location</th>
+            <th scope="col">Last Seen</th>
+            <th scope="col">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for device in devices %}
+          <tr>
+            <td>
+              <span
+                class="device-status status-{{ device.status }}"
+                data-device-id="{{ device.device_id }}"
+                data-bs-toggle="tooltip"
+                data-bs-placement="top"
+                title="Status: {{ device.status }}"
+              ></span>
+            </td>
+            <td>{{ device.name }}</td>
+            <td><code>{{ device.device_id }}</code></td>
+            <td>
+              {% if device.type == 'temperature' %}
+              <span class="badge bg-danger"
+                ><i class="fas fa-thermometer-half me-1"></i> Temperature</span
+              >
+              {% elif device.type == 'humidity' %}
+              <span class="badge bg-info"
+                ><i class="fas fa-tint me-1"></i> Humidity</span
+              >
+              {% elif device.type == 'light' %}
+              <span class="badge bg-warning"
+                ><i class="fas fa-lightbulb me-1"></i> Light</span
+              >
+              {% else %}
+              <span class="badge bg-secondary"
+                ><i class="fas fa-microchip me-1"></i> {{ device.type|title
+                }}</span
+              >
+              {% endif %}
+            </td>
+            <td>
+              {% if device.location == 'living_room' %}
+              <span class="badge bg-primary"
+                ><i class="fas fa-couch me-1"></i> Living Room</span
+              >
+              {% elif device.location == 'bedroom' %}
+              <span class="badge bg-info"
+                ><i class="fas fa-bed me-1"></i> Bedroom</span
+              >
+              {% elif device.location == 'kitchen' %}
+              <span class="badge bg-success"
+                ><i class="fas fa-utensils me-1"></i> Kitchen</span
+              >
+              {% else %}
+              <span class="badge bg-secondary"
+                >{{ device.location|replace('_', ' ')|title }}</span
+              >
+              {% endif %}
+            </td>
+            <td>
+              <span
+                class="device-last-seen"
+                data-device-id="{{ device.device_id }}"
+                data-timestamp="{{ device.last_seen }}"
+              >
+                {% if device.last_seen %} {{ device.last_seen.strftime('%Y-%m-%d
+                %H:%M:%S') }} {% else %} Never {% endif %}
+              </span>
+            </td>
+            <td>
+              <div class="btn-group btn-group-sm">
+                <button
+                  type="button"
+                  class="btn btn-outline-primary"
+                  data-bs-toggle="modal"
+                  data-bs-target="#editDeviceModal"
+                  data-device-id="{{ device.device_id }}"
+                >
+                  <i class="fas fa-edit"></i>
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-outline-danger"
+                  data-bs-toggle="modal"
+                  data-bs-target="#deleteDeviceModal"
+                  data-device-id="{{ device.device_id }}"
+                >
+                  <i class="fas fa-trash-alt"></i>
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-outline-info"
+                  data-bs-toggle="modal"
+                  data-bs-target="#deviceDetailsModal"
+                  data-device-id="{{ device.device_id }}"
+                >
+                  <i class="fas fa-info-circle"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Device Statistics -->
+<div class="row mt-4">
+  <div class="col-md-4 mb-4">
+    <div class="card">
+      <div class="card-header">
+        <h5 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Device Types</h5>
+      </div>
+      <div class="card-body">
+        <canvas id="deviceTypesChart" height="200"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-4 mb-4">
+    <div class="card">
+      <div class="card-header">
+        <h5 class="mb-0">
+          <i class="fas fa-map-marker-alt me-2"></i>Device Locations
+        </h5>
+      </div>
+      <div class="card-body">
+        <canvas id="deviceLocationsChart" height="200"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-4 mb-4">
+    <div class="card">
+      <div class="card-header">
+        <h5 class="mb-0"><i class="fas fa-wifi me-2"></i>Connection Status</h5>
+      </div>
+      <div class="card-body">
+        <canvas id="deviceStatusChart" height="200"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add Device Modal -->
+<div
+  class="modal fade"
+  id="addDeviceModal"
+  tabindex="-1"
+  aria-labelledby="addDeviceModalLabel"
+  aria-hidden="true"
+>
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="addDeviceModalLabel">
+          <i class="fas fa-plus-circle me-2"></i>Add New Device
+        </h5>
+        <button
+          type="button"
+          class="btn-close"
+          data-bs-dismiss="modal"
+          aria-label="Close"
+        ></button>
+      </div>
+      <div class="modal-body">
+        <form id="addDeviceForm">
+          <div class="mb-3">
+            <label for="deviceId" class="form-label">Device ID</label>
+            <input type="text" class="form-control" id="deviceId" required />
+            <div class="form-text">A unique identifier for the device</div>
+          </div>
+          <div class="mb-3">
+            <label for="deviceName" class="form-label">Name</label>
+            <input type="text" class="form-control" id="deviceName" required />
+          </div>
+          <div class="mb-3">
+            <label for="deviceType" class="form-label">Type</label>
+            <select class="form-select" id="deviceType" required>
+              <option value="" selected disabled>Select device type</option>
+              <option value="temperature">Temperature Sensor</option>
+              <option value="humidity">Humidity Sensor</option>
+              <option value="light">Light</option>
+              <option value="switch">Switch</option>
+              <option value="motion">Motion Sensor</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label for="deviceLocation" class="form-label">Location</label>
+            <select class="form-select" id="deviceLocation" required>
+              <option value="" selected disabled>Select location</option>
+              <option value="living_room">Living Room</option>
+              <option value="bedroom">Bedroom</option>
+              <option value="kitchen">Kitchen</option>
+              <option value="bathroom">Bathroom</option>
+              <option value="hallway">Hallway</option>
+            </select>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+          Cancel
+        </button>
+        <button type="button" class="btn btn-primary" id="saveNewDevice">
+          Add Device
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Device Modal -->
+<div
+  class="modal fade"
+  id="editDeviceModal"
+  tabindex="-1"
+  aria-labelledby="editDeviceModalLabel"
+  aria-hidden="true"
+>
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="editDeviceModalLabel">
+          <i class="fas fa-edit me-2"></i>Edit Device
+        </h5>
+        <button
+          type="button"
+          class="btn-close"
+          data-bs-dismiss="modal"
+          aria-label="Close"
+        ></button>
+      </div>
+      <div class="modal-body">
+        <form id="editDeviceForm">
+          <input type="hidden" id="editDeviceId" />
+          <div class="mb-3">
+            <label for="editDeviceName" class="form-label">Name</label>
+            <input
+              type="text"
+              class="form-control"
+              id="editDeviceName"
+              required
+            />
+          </div>
+          <div class="mb-3 form-check form-switch">
+            <input
+              class="form-check-input"
+              type="checkbox"
+              id="editDeviceActive"
+            />
+            <label class="form-check-label" for="editDeviceActive"
+              >Device Active</label
+            >
+          </div>
+          <div class="mb-3">
+            <label for="editDeviceLocation" class="form-label">Location</label>
+            <select class="form-select" id="editDeviceLocation" required>
+              <option value="" disabled>Select location</option>
+              <option value="living_room">Living Room</option>
+              <option value="bedroom">Bedroom</option>
+              <option value="kitchen">Kitchen</option>
+              <option value="bathroom">Bathroom</option>
+              <option value="hallway">Hallway</option>
+            </select>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+          Cancel
+        </button>
+        <button type="button" class="btn btn-primary" id="updateDevice">
+          Save Changes
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Device Modal -->
+<div
+  class="modal fade"
+  id="deleteDeviceModal"
+  tabindex="-1"
+  aria-labelledby="deleteDeviceModalLabel"
+  aria-hidden="true"
+>
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="deleteDeviceModalLabel">
+          <i class="fas fa-trash-alt me-2"></i>Delete Device
+        </h5>
+        <button
+          type="button"
+          class="btn-close"
+          data-bs-dismiss="modal"
+          aria-label="Close"
+        ></button>
+      </div>
+      <div class="modal-body">
+        <p>
+          Are you sure you want to delete this device? This action cannot be
+          undone.
+        </p>
+        <div class="alert alert-warning">
+          <i class="fas fa-exclamation-triangle me-2"></i>
+          All historical data associated with this device will also be deleted.
+        </div>
+        <div class="device-info mt-3">
+          <p><strong>Device:</strong> <span id="deleteDeviceName">--</span></p>
+          <p><strong>ID:</strong> <code id="deleteDeviceId">--</code></p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+          Cancel
+        </button>
+        <button type="button" class="btn btn-danger" id="confirmDeleteDevice">
+          Delete Device
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Device Details Modal -->
+<div
+  class="modal fade"
+  id="deviceDetailsModal"
+  tabindex="-1"
+  aria-labelledby="deviceDetailsModalLabel"
+  aria-hidden="true"
+>
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="deviceDetailsModalLabel">
+          <i class="fas fa-info-circle me-2"></i>Device Details
+        </h5>
+        <button
+          type="button"
+          class="btn-close"
+          data-bs-dismiss="modal"
+          aria-label="Close"
+        ></button>
+      </div>
+      <div class="modal-body">
+        <div class="row">
+          <div class="col-md-6">
+            <h6>Basic Information</h6>
+            <table class="table table-sm">
+              <tr>
+                <th>Device ID:</th>
+                <td><code id="detailDeviceId">--</code></td>
+              </tr>
+              <tr>
+                <th>Name:</th>
+                <td id="detailDeviceName">--</td>
+              </tr>
+              <tr>
+                <th>Type:</th>
+                <td id="detailDeviceType">--</td>
+              </tr>
+              <tr>
+                <th>Location:</th>
+                <td id="detailDeviceLocation">--</td>
+              </tr>
+              <tr>
+                <th>Status:</th>
+                <td id="detailDeviceStatus">--</td>
+              </tr>
+              <tr>
+                <th>Last Seen:</th>
+                <td id="detailDeviceLastSeen">--</td>
+              </tr>
+            </table>
+          </div>
+          <div class="col-md-6">
+            <h6>Current Readings</h6>
+            <div id="deviceReadings">
+              <div class="text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                  <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2">Loading latest data...</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-4">
+          <h6>Recent Activity</h6>
+          <div id="deviceActivity">
+            <div class="text-center py-3">
+              <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+              </div>
+              <p class="mt-2">Loading activity data...</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-4">
+          <h6>Data Visualization</h6>
+          <div
+            class="chart-container"
+            style="height: 200px"
+            id="deviceDetailsChart"
+          >
+            <canvas></canvas>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+          Close
+        </button>
+        <button type="button" class="btn btn-primary" id="viewDeviceHistory">
+          View Full History
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %} {% block custom_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    // Initialize charts for device statistics
+    initDeviceStatisticsCharts();
+
+    // Handle add device form submission
+    document
+      .getElementById('saveNewDevice')
+      .addEventListener('click', function () {
+        const deviceId = document.getElementById('deviceId').value;
+        const name = document.getElementById('deviceName').value;
+        const type = document.getElementById('deviceType').value;
+        const location = document.getElementById('deviceLocation').value;
+
+        if (!deviceId || !name || !type || !location) {
+          showAlert('Please fill all required fields', 'danger');
+          return;
+        }
+
+        // Send API request
+        apiRequest('/api/devices', 'POST', {
+          device_id: deviceId,
+          name: name,
+          type: type,
+          location: location,
+        }).then((response) => {
+          if (response.success) {
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(
+              document.getElementById('addDeviceModal')
+            );
+            modal.hide();
+
+            // Show success message
+            showAlert('Device added successfully', 'success');
+
+            // Reload page to see new device
+            setTimeout(() => {
+              window.location.reload();
+            }, 1000);
+          }
+        });
+      });
+
+    // Handle edit device modal
+    const editDeviceModal = document.getElementById('editDeviceModal');
+    if (editDeviceModal) {
+      editDeviceModal.addEventListener('show.bs.modal', function (event) {
+        const button = event.relatedTarget;
+        const deviceId = button.getAttribute('data-device-id');
+
+        // Get device details
+        apiRequest(`/api/devices/${deviceId}`, 'GET').then((response) => {
+          if (response.success) {
+            const device = response.device;
+
+            // Fill form fields
+            document.getElementById('editDeviceId').value = device.device_id;
+            document.getElementById('editDeviceName').value = device.name;
+            document.getElementById('editDeviceLocation').value =
+              device.location;
+            document.getElementById('editDeviceActive').checked =
+              device.is_active;
+          }
+        });
+      });
+    }
+
+    // Handle device update
+    document
+      .getElementById('updateDevice')
+      .addEventListener('click', function () {
+        const deviceId = document.getElementById('editDeviceId').value;
+        const name = document.getElementById('editDeviceName').value;
+        const location = document.getElementById('editDeviceLocation').value;
+        const isActive = document.getElementById('editDeviceActive').checked;
+
+        if (!deviceId || !name || !location) {
+          showAlert('Please fill all required fields', 'danger');
+          return;
+        }
+
+        // Send API request
+        apiRequest(`/api/devices/${deviceId}`, 'PUT', {
+          name: name,
+          location: location,
+          is_active: isActive,
+        }).then((response) => {
+          if (response.success) {
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(
+              document.getElementById('editDeviceModal')
+            );
+            modal.hide();
+
+            // Show success message
+            showAlert('Device updated successfully', 'success');
+
+            // Reload page to see changes
+            setTimeout(() => {
+              window.location.reload();
+            }, 1000);
+          }
+        });
+      });
+
+    // Handle delete device modal
+    const deleteDeviceModal = document.getElementById('deleteDeviceModal');
+    if (deleteDeviceModal) {
+      deleteDeviceModal.addEventListener('show.bs.modal', function (event) {
+        const button = event.relatedTarget;
+        const deviceId = button.getAttribute('data-device-id');
+
+        // Get device details
+        apiRequest(`/api/devices/${deviceId}`, 'GET').then((response) => {
+          if (response.success) {
+            const device = response.device;
+
+            // Fill device info
+            document.getElementById('deleteDeviceName').textContent =
+              device.name;
+            document.getElementById('deleteDeviceId').textContent =
+              device.device_id;
+
+            // Set data attribute for delete button
+            document
+              .getElementById('confirmDeleteDevice')
+              .setAttribute('data-device-id', device.device_id);
+          }
+        });
+      });
+    }
+
+    // Handle device deletion
+    document
+      .getElementById('confirmDeleteDevice')
+      .addEventListener('click', function () {
+        const deviceId = this.getAttribute('data-device-id');
+
+        // Send API request
+        apiRequest(`/api/devices/${deviceId}`, 'DELETE').then((response) => {
+          if (response.success) {
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(
+              document.getElementById('deleteDeviceModal')
+            );
+            modal.hide();
+
+            // Show success message
+            showAlert('Device deleted successfully', 'success');
+
+            // Reload page to see changes
+            setTimeout(() => {
+              window.location.reload();
+            }, 1000);
+          }
+        });
+      });
+
+    // Handle device details modal
+    const deviceDetailsModal = document.getElementById('deviceDetailsModal');
+    if (deviceDetailsModal) {
+      deviceDetailsModal.addEventListener('show.bs.modal', function (event) {
+        const button = event.relatedTarget;
+        const deviceId = button.getAttribute('data-device-id');
+
+        // Get device details
+        apiRequest(`/api/devices/${deviceId}`, 'GET').then((response) => {
+          if (response.success) {
+            const device = response.device;
+
+            // Fill device info
+            document.getElementById('detailDeviceId').textContent =
+              device.device_id;
+            document.getElementById('detailDeviceName').textContent =
+              device.name;
+            document.getElementById('detailDeviceType').textContent =
+              device.type[0].toUpperCase() + device.type.slice(1);
+            document.getElementById('detailDeviceLocation').textContent =
+              device.location.replace('_', ' ');
+            document.getElementById('detailDeviceStatus').textContent =
+              device.status;
+            document.getElementById('detailDeviceLastSeen').textContent =
+              device.last_seen ? formatDate(device.last_seen) : 'Never';
+
+            // Set button destination
+            document
+              .getElementById('viewDeviceHistory')
+              .setAttribute('data-device-id', device.device_id);
+
+            // Load device data
+            loadDeviceData(device.device_id);
+
+            // Load device activity
+            loadDeviceActivity(device.device_id);
+
+            // Initialize chart
+            initDeviceDetailsChart(device.device_id, device.type);
+          }
+        });
+      });
+    }
+
+    // Handle view history button
+    document
+      .getElementById('viewDeviceHistory')
+      .addEventListener('click', function () {
+        const deviceId = this.getAttribute('data-device-id');
+        window.location.href = `/history?device=${deviceId}`;
+      });
+
+    // Handle device search
+    document
+      .getElementById('deviceSearch')
+      .addEventListener('keyup', function () {
+        const searchQuery = this.value.toLowerCase();
+        const tableRows = document.querySelectorAll('tbody tr');
+
+        tableRows.forEach((row) => {
+          const deviceName = row.cells[1].textContent.toLowerCase();
+          const deviceId = row.cells[2].textContent.toLowerCase();
+          const deviceType = row.cells[3].textContent.toLowerCase();
+          const deviceLocation = row.cells[4].textContent.toLowerCase();
+
+          if (
+            deviceName.includes(searchQuery) ||
+            deviceId.includes(searchQuery) ||
+            deviceType.includes(searchQuery) ||
+            deviceLocation.includes(searchQuery)
+          ) {
+            row.style.display = '';
+          } else {
+            row.style.display = 'none';
+          }
+        });
+      });
+
+    // Initialize device statistics charts
+    function initDeviceStatisticsCharts() {
+      // Get device data counts
+      const devices = {
+        types: {},
+        locations: {},
+        status: {
+          online: 0,
+          offline: 0,
+          error: 0,
+        },
+      };
+
+      // Count devices by type, location, and status
+      document.querySelectorAll('tbody tr').forEach((row) => {
+        const type = row.cells[3].textContent.trim();
+        const location = row.cells[4].textContent.trim();
+        const status = row.cells[0]
+          .querySelector('.device-status')
+          .classList.contains('status-online')
+          ? 'online'
+          : row.cells[0]
+              .querySelector('.device-status')
+              .classList.contains('status-error')
+          ? 'error'
+          : 'offline';
+
+        // Count by type
+        if (!devices.types[type]) {
+          devices.types[type] = 0;
+        }
+        devices.types[type]++;
+
+        // Count by location
+        if (!devices.locations[location]) {
+          devices.locations[location] = 0;
+        }
+        devices.locations[location]++;
+
+        // Count by status
+        devices.status[status]++;
+      });
+
+      // Create device types chart
+      const typeCtx = document
+        .getElementById('deviceTypesChart')
+        .getContext('2d');
+      new Chart(typeCtx, {
+        type: 'doughnut',
+        data: {
+          labels: Object.keys(devices.types),
+          datasets: [
+            {
+              data: Object.values(devices.types),
+              backgroundColor: [
+                'rgba(231, 76, 60, 0.7)',
+                'rgba(52, 152, 219, 0.7)',
+                'rgba(243, 156, 18, 0.7)',
+                'rgba(46, 204, 113, 0.7)',
+                'rgba(155, 89, 182, 0.7)',
+              ],
+              borderColor: [
+                'rgba(231, 76, 60, 1)',
+                'rgba(52, 152, 219, 1)',
+                'rgba(243, 156, 18, 1)',
+                'rgba(46, 204, 113, 1)',
+                'rgba(155, 89, 182, 1)',
+              ],
+              borderWidth: 1,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: {
+              position: 'right',
+            },
+          },
+        },
+      });
+
+      // Create device locations chart
+      const locationCtx = document
+        .getElementById('deviceLocationsChart')
+        .getContext('2d');
+      new Chart(locationCtx, {
+        type: 'doughnut',
+        data: {
+          labels: Object.keys(devices.locations),
+          datasets: [
+            {
+              data: Object.values(devices.locations),
+              backgroundColor: [
+                'rgba(52, 152, 219, 0.7)',
+                'rgba(155, 89, 182, 0.7)',
+                'rgba(46, 204, 113, 0.7)',
+                'rgba(243, 156, 18, 0.7)',
+                'rgba(231, 76, 60, 0.7)',
+              ],
+              borderColor: [
+                'rgba(52, 152, 219, 1)',
+                'rgba(155, 89, 182, 1)',
+                'rgba(46, 204, 113, 1)',
+                'rgba(243, 156, 18, 1)',
+                'rgba(231, 76, 60, 1)',
+              ],
+              borderWidth: 1,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: {
+              position: 'right',
+            },
+          },
+        },
+      });
+
+      // Create device status chart
+      const statusCtx = document
+        .getElementById('deviceStatusChart')
+        .getContext('2d');
+      new Chart(statusCtx, {
+        type: 'doughnut',
+        data: {
+          labels: ['Online', 'Offline', 'Error'],
+          datasets: [
+            {
+              data: [
+                devices.status.online,
+                devices.status.offline,
+                devices.status.error,
+              ],
+              backgroundColor: [
+                'rgba(46, 204, 113, 0.7)',
+                'rgba(149, 165, 166, 0.7)',
+                'rgba(231, 76, 60, 0.7)',
+              ],
+              borderColor: [
+                'rgba(46, 204, 113, 1)',
+                'rgba(149, 165, 166, 1)',
+                'rgba(231, 76, 60, 1)',
+              ],
+              borderWidth: 1,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: {
+              position: 'right',
+            },
+          },
+        },
+      });
+    }
+
+    // Load device data
+    function loadDeviceData(deviceId) {
+      const readingsContainer = document.getElementById('deviceReadings');
+
+      // Show loading indicator
+      readingsContainer.innerHTML = `
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2">Loading latest data...</p>
+            </div>
+        `;
+
+      // Fetch device data
+      apiRequest(`/api/devices/${deviceId}/data?limit=1`, 'GET')
+        .then((response) => {
+          if (response.success && response.data && response.data.length > 0) {
+            const data = response.data[0];
+
+            // Format date
+            const timestamp = formatDate(data.timestamp);
+
+            // Get unit
+            let unit = data.unit || '';
+
+            // Display data
+            readingsContainer.innerHTML = `
+                        <div class="text-center">
+                            <div class="sensor-value-large">
+                                <div class="value">${parseFloat(
+                                  data.value
+                                ).toFixed(
+                                  1
+                                )}<span class="unit">${unit}</span></div>
+                                <div class="timestamp">as of ${timestamp}</div>
+                            </div>
+                        </div>
+                    `;
+          } else {
+            readingsContainer.innerHTML = `
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            No sensor data available for this device.
+                        </div>
+                    `;
+          }
+        })
+        .catch((error) => {
+          readingsContainer.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        Error loading device data: ${error.message}
+                    </div>
+                `;
+        });
+    }
+
+    // Load device activity
+    function loadDeviceActivity(deviceId) {
+      const activityContainer = document.getElementById('deviceActivity');
+
+      // Show loading indicator
+      activityContainer.innerHTML = `
+            <div class="text-center py-3">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2">Loading activity data...</p>
+            </div>
+        `;
+
+      // TODO: Replace with actual API call to get device activity
+      // For now, just show a placeholder
+      setTimeout(() => {
+        activityContainer.innerHTML = `
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    User action history is not available yet.
+                </div>
+            `;
+      }, 1000);
+    }
+
+    // Initialize device details chart
+    function initDeviceDetailsChart(deviceId, deviceType) {
+      const canvas = document.querySelector('#deviceDetailsChart canvas');
+      if (!canvas) return;
+
+      // Fetch device data for the chart
+      apiRequest(`/api/devices/${deviceId}/data?limit=20`, 'GET').then(
+        (response) => {
+          if (response.success && response.data && response.data.length > 0) {
+            const data = response.data.reverse(); // Oldest first
+
+            // Determine chart color based on device type
+            let color;
+            if (deviceType === 'temperature') {
+              color = 'rgb(231, 76, 60)';
+            } else if (deviceType === 'humidity') {
+              color = 'rgb(52, 152, 219)';
+            } else if (deviceType === 'light') {
+              color = 'rgb(243, 156, 18)';
+            } else {
+              color = 'rgb(46, 204, 113)';
+            }
+
+            // Prepare data for chart
+            const chartData = {
+              labels: data.map((item) => new Date(item.timestamp)),
+              datasets: [
+                {
+                  label: deviceType[0].toUpperCase() + deviceType.slice(1),
+                  data: data.map((item) => item.value),
+                  borderColor: color,
+                  backgroundColor: color
+                    .replace('rgb', 'rgba')
+                    .replace(')', ', 0.1)'),
+                  borderWidth: 2,
+                  tension: 0.2,
+                  fill: true,
+                },
+              ],
+            };
+
+            // Create chart
+            new Chart(canvas, {
+              type: 'line',
+              data: chartData,
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                  x: {
+                    type: 'time',
+                    time: {
+                      unit: 'minute',
+                      displayFormats: {
+                        minute: 'HH:mm',
+                      },
+                    },
+                    title: {
+                      display: true,
+                      text: 'Time',
+                    },
+                  },
+                  y: {
+                    title: {
+                      display: true,
+                      text: `${
+                        deviceType[0].toUpperCase() + deviceType.slice(1)
+                      } ${data[0].unit || ''}`,
+                    },
+                  },
+                },
+                plugins: {
+                  legend: {
+                    display: false,
+                  },
+                },
+              },
+            });
+          } else {
+            document.getElementById('deviceDetailsChart').innerHTML = `
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            No data available for chart visualization.
+                        </div>
+                    `;
+          }
+        }
+      );
+    }
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,236 @@
+{% extends "base.html" %} {% block title %}Smart Home Dashboard - Welcome{%
+endblock %} {% block content %}
+<div class="row mt-4 mb-5">
+  <div class="col-md-12 text-center">
+    <h1 class="display-4 mb-4">Smart Home IoT Dashboard</h1>
+    <p class="lead">Monitor and control your connected home from anywhere</p>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-md-6 mb-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <h2 class="card-title">
+          <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+        </h2>
+        <p class="card-text">
+          View real-time data from all your connected devices. Monitor
+          temperature, humidity, and light levels throughout your home.
+        </p>
+        <div class="text-center mt-4">
+          <img
+            src="{{ url_for('static', filename='img/dashboard-illustration.svg') }}"
+            class="img-fluid mb-3"
+            alt="Dashboard illustration"
+            style="max-width: 250px"
+          />
+        </div>
+        <div class="text-center mt-3">
+          <a href="{{ url_for('dashboard') }}" class="btn btn-primary"
+            >Go to Dashboard</a
+          >
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-6 mb-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <h2 class="card-title">
+          <i class="fas fa-microchip me-2"></i>Manage Devices
+        </h2>
+        <p class="card-text">
+          Add, configure, and manage all your IoT devices from a single
+          interface. Control lights, thermostats, and more.
+        </p>
+        <div class="text-center mt-4">
+          <img
+            src="{{ url_for('static', filename='img/devices-illustration.svg') }}"
+            class="img-fluid mb-3"
+            alt="Devices illustration"
+            style="max-width: 250px"
+          />
+        </div>
+        <div class="text-center mt-3">
+          <a href="{{ url_for('devices') }}" class="btn btn-success"
+            >Manage Devices</a
+          >
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-md-4 mb-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <h3 class="card-title">
+          <i class="fas fa-chart-area me-2"></i>Data Visualization
+        </h3>
+        <p class="card-text">
+          View trends and patterns in your home's environmental data with
+          interactive charts and graphs.
+        </p>
+        <div class="text-center mt-4">
+          <i class="fas fa-chart-line text-primary" style="font-size: 64px"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-4 mb-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <h3 class="card-title">
+          <i class="fas fa-history me-2"></i>Historical Data
+        </h3>
+        <p class="card-text">
+          Access and analyze historical data from all your connected devices to
+          optimize your home's environment.
+        </p>
+        <div class="text-center mt-4">
+          <i class="fas fa-database text-info" style="font-size: 64px"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-4 mb-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <h3 class="card-title">
+          <i class="fas fa-bolt me-2"></i>Real-time Updates
+        </h3>
+        <p class="card-text">
+          Receive instant updates from your devices with our real-time
+          communication system powered by Socket.IO.
+        </p>
+        <div class="text-center mt-4">
+          <i
+            class="fas fa-broadcast-tower text-success"
+            style="font-size: 64px"
+          ></i>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row mt-4">
+  <div class="col-md-12">
+    <div class="card">
+      <div class="card-body">
+        <h2 class="card-title text-center mb-4">
+          <i class="fas fa-code me-2"></i>System Architecture
+        </h2>
+
+        <div class="row">
+          <div class="col-md-6">
+            <h4><i class="fas fa-server me-2"></i>Backend</h4>
+            <ul class="list-group mb-4">
+              <li
+                class="list-group-item d-flex justify-content-between align-items-center"
+              >
+                Python Flask
+                <span class="badge bg-primary rounded-pill">Web Framework</span>
+              </li>
+              <li
+                class="list-group-item d-flex justify-content-between align-items-center"
+              >
+                SQLite + SQLAlchemy
+                <span class="badge bg-primary rounded-pill">Database</span>
+              </li>
+              <li
+                class="list-group-item d-flex justify-content-between align-items-center"
+              >
+                Flask-SocketIO
+                <span class="badge bg-primary rounded-pill"
+                  >Real-time Comms</span
+                >
+              </li>
+              <li
+                class="list-group-item d-flex justify-content-between align-items-center"
+              >
+                Paho MQTT Client
+                <span class="badge bg-primary rounded-pill">IoT Protocol</span>
+              </li>
+            </ul>
+          </div>
+
+          <div class="col-md-6">
+            <h4><i class="fas fa-desktop me-2"></i>Frontend</h4>
+            <ul class="list-group mb-4">
+              <li
+                class="list-group-item d-flex justify-content-between align-items-center"
+              >
+                Bootstrap 5
+                <span class="badge bg-success rounded-pill">UI Framework</span>
+              </li>
+              <li
+                class="list-group-item d-flex justify-content-between align-items-center"
+              >
+                Chart.js
+                <span class="badge bg-success rounded-pill"
+                  >Data Visualization</span
+                >
+              </li>
+              <li
+                class="list-group-item d-flex justify-content-between align-items-center"
+              >
+                Socket.IO Client
+                <span class="badge bg-success rounded-pill"
+                  >Real-time Updates</span
+                >
+              </li>
+              <li
+                class="list-group-item d-flex justify-content-between align-items-center"
+              >
+                Jinja2 Templates
+                <span class="badge bg-success rounded-pill"
+                  >HTML Templating</span
+                >
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="col-md-12">
+            <h4 class="text-center mb-3">
+              <i class="fas fa-project-diagram me-2"></i>Data Flow Architecture
+            </h4>
+            <div class="text-center">
+              <img
+                src="{{ url_for('static', filename='img/architecture-diagram.svg') }}"
+                class="img-fluid border rounded p-3 bg-light"
+                alt="Architecture diagram"
+                style="max-width: 700px"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row mt-4 mb-4">
+  <div class="col-md-12">
+    <div class="card bg-dark text-white">
+      <div class="card-body text-center py-4">
+        <h2 class="card-title mb-3">Ready to explore your smart home?</h2>
+        <p class="card-text lead">
+          View your dashboard to see real-time data from all your connected
+          devices
+        </p>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-lg btn-primary mt-2"
+          >Go to Dashboard <i class="fas fa-arrow-right ms-2"></i
+        ></a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
