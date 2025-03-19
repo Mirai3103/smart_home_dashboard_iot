@@ -1,181 +1,225 @@
-document.addEventListener('DOMContentLoaded', function() {
-  // Initialize tooltips
-  const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
-  const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
-  
-  // Initialize popovers
-  const popoverTriggerList = document.querySelectorAll('[data-bs-toggle="popover"]');
-  const popoverList = [...popoverTriggerList].map(popoverTriggerEl => new bootstrap.Popover(popoverTriggerEl));
-  
-  // Current time display
-  updateCurrentTime();
-  setInterval(updateCurrentTime, 1000);
-  
-  // Refresh buttons
-  const refreshButtons = document.querySelectorAll('.refresh-button');
-  refreshButtons.forEach(button => {
-      button.addEventListener('click', function() {
-          const targetId = this.getAttribute('data-refresh-target');
-          const target = document.getElementById(targetId);
-          
-          if (target) {
-              // Add spinning animation
-              this.classList.add('fa-spin');
-              
-              // Get the data-refresh-url if it exists
-              const refreshUrl = this.getAttribute('data-refresh-url');
-              if (refreshUrl) {
-                  // Fetch new data and update the content
-                  fetch(refreshUrl)
-                      .then(response => response.json())
-                      .then(data => {
-                          // Update content based on the response
-                          handleRefreshData(target, data);
-                          // Stop spinning after a short delay
-                          setTimeout(() => {
-                              this.classList.remove('fa-spin');
-                          }, 500);
-                      })
-                      .catch(error => {
-                          console.error('Error refreshing data:', error);
-                          this.classList.remove('fa-spin');
-                          showAlert('Error refreshing data. Please try again.', 'danger');
-                      });
-              } else {
-                  // If no URL is provided, just simulate a refresh
-                  setTimeout(() => {
-                      this.classList.remove('fa-spin');
-                  }, 1000);
-              }
-          }
-      });
-  });
-});
+/**
+ * Main JavaScript file for Smart Home Dashboard
+ * Contains global utilities and initialization logic
+ */
 
-// Update current time display
-function updateCurrentTime() {
-  const timeElements = document.querySelectorAll('.current-time');
-  const now = new Date();
-  const formattedTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  
-  timeElements.forEach(element => {
-      element.textContent = formattedTime;
-  });
-}
+// Use IIFE to avoid global namespace pollution
+(function() {
+    // Global variables
+    let mqttClient = null;  // Initialize once, avoid redeclaring
+    let mqttConnected = false;
+    let mqttTopics = [];
+    let deviceData = {};
 
-// Handle refresh data update
-function handleRefreshData(target, data) {
-  // Update based on the target and data
-  // This function should be customized based on your specific needs
-  if (data.success) {
-      if (data.devices) {
-          // Update devices list
-          // Implementation depends on your UI structure
-      } else if (data.data) {
-          // Update sensor data
-          // Implementation depends on your UI structure
-      }
-  } else {
-      showAlert(data.message || 'Error refreshing data', 'danger');
-  }
-}
-
-// Show an alert message
-function showAlert(message, type = 'info') {
-  const alertContainer = document.getElementById('alert-container');
-  if (!alertContainer) return;
-  
-  const alertElement = document.createElement('div');
-  alertElement.className = `alert alert-${type} alert-dismissible fade show`;
-  alertElement.role = 'alert';
-  
-  alertElement.innerHTML = `
-      ${message}
-      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-  `;
-  
-  alertContainer.appendChild(alertElement);
-  
-  // Auto dismiss after 5 seconds
-  setTimeout(() => {
-      const bsAlert = new bootstrap.Alert(alertElement);
-      bsAlert.close();
-  }, 5000);
-}
-
-// Format date for display
-function formatDate(dateString) {
-  const date = new Date(dateString);
-  return date.toLocaleString();
-}
-
-// Format relative time
-function formatRelativeTime(dateString) {
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffMs = now - date;
-  const diffSec = Math.floor(diffMs / 1000);
-  const diffMin = Math.floor(diffSec / 60);
-  const diffHour = Math.floor(diffMin / 60);
-  const diffDay = Math.floor(diffHour / 24);
-  
-  if (diffDay > 0) {
-      return `${diffDay} day${diffDay > 1 ? 's' : ''} ago`;
-  } else if (diffHour > 0) {
-      return `${diffHour} hour${diffHour > 1 ? 's' : ''} ago`;
-  } else if (diffMin > 0) {
-      return `${diffMin} minute${diffMin > 1 ? 's' : ''} ago`;
-  } else if (diffSec > 10) {
-      return `${diffSec} seconds ago`;
-  } else {
-      return 'just now';
-  }
-}
-
-// Get appropriate device icon class
-function getDeviceIconClass(deviceType) {
-  const iconMap = {
-      'temperature': 'fa-thermometer-half',
-      'humidity': 'fa-tint',
-      'light': 'fa-lightbulb',
-      'motion': 'fa-running',
-      'switch': 'fa-toggle-on',
-      'door': 'fa-door-open',
-      'window': 'fa-window-maximize',
-      'camera': 'fa-video',
-      'speaker': 'fa-volume-up',
-      'fan': 'fa-fan',
-      'thermostat': 'fa-thermometer-full'
-  };
-  
-  return iconMap[deviceType] || 'fa-microchip';
-}
-
-// API request helper function
-async function apiRequest(url, method = 'GET', data = null) {
-  const options = {
-      method: method,
-      headers: {
-          'Content-Type': 'application/json'
-      }
-  };
-  
-  if (data && (method === 'POST' || method === 'PUT')) {
-      options.body = JSON.stringify(data);
-  }
-  
-  try {
-      const response = await fetch(url, options);
-      const result = await response.json();
-      
-      if (!response.ok) {
-          throw new Error(result.message || 'API request failed');
-      }
-      
-      return result;
-  } catch (error) {
-      console.error('API Request Error:', error);
-      showAlert(error.message, 'danger');
-      throw error;
-  }
-}
+    // Initialize when the document is ready
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('Main script initialized');
+        
+        // Initialize components based on page
+        initPageComponents();
+        
+        // Setup MQTT if available
+        if (typeof mqtt !== 'undefined') {
+            initMqttClient();
+        }
+    });
+    
+    // Initialize different components based on current page
+    function initPageComponents() {
+        // Check which page we're on based on body classes or URL
+        const path = window.location.pathname;
+        
+        if (path === '/' || path.includes('dashboard')) {
+            console.log('Dashboard page detected');
+            // Dashboard specific initializations
+        } else if (path.includes('devices')) {
+            console.log('Devices page detected');
+            // Devices page specific initializations
+        } else if (path.includes('history')) {
+            console.log('History page detected');
+            // History page specific initializations
+        }
+    }
+    
+    // Initialize MQTT client with proper error handling
+    function initMqttClient() {
+        try {
+            if (mqttClient) {
+                console.log('MQTT client already exists, not reinitializing');
+                return;
+            }
+            
+            console.log('Initializing MQTT client');
+            
+            // Get authentication token if available
+            const token = localStorage.getItem('accessToken');
+            
+            // MQTT client options
+            const options = {
+                clean: true,
+                connectTimeout: 5000,
+                clientId: 'web_' + Math.random().toString(16).substr(2, 8),
+                username: token || 'guest',
+                password: token || 'guest',
+            };
+            
+            // Connect to broker using WebSocket
+            const brokerUrl = 'wss://' + window.location.hostname + ':9001';
+            mqttClient = mqtt.connect(brokerUrl, options);
+            
+            // Set up event handlers
+            mqttClient.on('connect', onMqttConnect);
+            mqttClient.on('error', onMqttError);
+            mqttClient.on('message', onMqttMessage);
+            mqttClient.on('offline', onMqttOffline);
+            
+            // Expose MQTT client to window for debugging only in development
+            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                window.debugMqttClient = mqttClient; // For debugging only
+            }
+            
+        } catch (error) {
+            console.error('Failed to initialize MQTT client:', error);
+            // Make sure we don't leave a partially initialized client
+            mqttClient = null;
+        }
+    }
+    
+    function onMqttConnect() {
+        console.log('MQTT client connected');
+        mqttConnected = true;
+        
+        // Subscribe to saved topics
+        if (mqttTopics.length > 0) {
+            mqttTopics.forEach(topic => {
+                mqttClient.subscribe(topic, {qos: 1});
+            });
+            console.log('Subscribed to saved topics:', mqttTopics);
+        }
+        
+        // Dispatch event for other components to know MQTT is ready
+        document.dispatchEvent(new CustomEvent('mqtt_connected'));
+    }
+    
+    function onMqttError(error) {
+        console.error('MQTT client error:', error);
+        mqttConnected = false;
+        
+        // Dispatch event for other components
+        document.dispatchEvent(new CustomEvent('mqtt_error', {
+            detail: { error: error }
+        }));
+    }
+    
+    function onMqttMessage(topic, message) {
+        try {
+            const payload = message.toString();
+            console.log('MQTT message received:', topic, payload);
+            
+            // Try to parse as JSON
+            let data;
+            try {
+                data = JSON.parse(payload);
+            } catch (e) {
+                data = { value: payload };
+            }
+            
+            // Store in device data cache
+            const topicParts = topic.split('/');
+            if (topicParts.length >= 4) {
+                const deviceType = topicParts[3];
+                const location = topicParts[2];
+                const deviceId = `${deviceType}_${location}`;
+                
+                if (!deviceData[deviceId]) {
+                    deviceData[deviceId] = [];
+                }
+                
+                // Add timestamp if not present
+                if (!data.timestamp) {
+                    data.timestamp = new Date().toISOString();
+                }
+                
+                // Store data
+                deviceData[deviceId].unshift(data);
+                
+                // Keep only latest 100 entries
+                if (deviceData[deviceId].length > 100) {
+                    deviceData[deviceId].pop();
+                }
+                
+                // Dispatch event for components that need to know about this update
+                document.dispatchEvent(new CustomEvent('mqtt_data_update', {
+                    detail: { 
+                        topic: topic,
+                        deviceId: deviceId,
+                        data: data
+                    }
+                }));
+            }
+        } catch (e) {
+            console.error('Error processing MQTT message:', e);
+        }
+    }
+    
+    function onMqttOffline() {
+        console.log('MQTT client offline');
+        mqttConnected = false;
+        
+        // Dispatch event for other components
+        document.dispatchEvent(new CustomEvent('mqtt_disconnected'));
+    }
+    
+    // Safe subscribe function (can be called before connection is established)
+    function mqttSubscribe(topic) {
+        // Save topic for reconnection
+        if (mqttTopics.indexOf(topic) === -1) {
+            mqttTopics.push(topic);
+        }
+        
+        // Subscribe if already connected
+        if (mqttClient && mqttConnected) {
+            mqttClient.subscribe(topic, {qos: 1});
+            console.log('Subscribed to MQTT topic:', topic);
+        } else {
+            console.log('Topic queued for subscription:', topic);
+        }
+    }
+    
+    // Safe publish function
+    function mqttPublish(topic, message, options = {}) {
+        if (!mqttClient || !mqttConnected) {
+            console.error('Cannot publish: MQTT client not connected');
+            return false;
+        }
+        
+        try {
+            // Convert object to string if needed
+            if (typeof message === 'object') {
+                message = JSON.stringify(message);
+            }
+            
+            // Default options
+            const publishOptions = {
+                qos: 1,
+                retain: false,
+                ...options
+            };
+            
+            mqttClient.publish(topic, message, publishOptions);
+            return true;
+        } catch (e) {
+            console.error('Error publishing MQTT message:', e);
+            return false;
+        }
+    }
+    
+    // Expose functions to global scope (safely)
+    window.smartHome = window.smartHome || {};
+    window.smartHome.mqtt = {
+        subscribe: mqttSubscribe,
+        publish: mqttPublish,
+        isConnected: () => mqttConnected,
+        getDeviceData: (deviceId) => deviceData[deviceId] || []
+    };
+})();

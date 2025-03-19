@@ -76,4 +76,19 @@ endblock %} {% block content %}
     </div>
   </div>
 </div>
+{% endblock %} {% block custom_js %}
+<script>
+  // Check if there's an access token in the context (passed from backend)
+  {% if current_user.is_authenticated %}
+    {% if current_user.access_token %}
+      // Store token in local storage
+      localStorage.setItem('access_token', '{{ current_user.access_token }}');
+    {% endif %}
+
+    // Redirect if there's a next parameter
+    {% if request.args.get('next') %}
+      window.location.href = '{{ request.args.get("next") }}';
+    {% endif %}
+  {% endif %}
+</script>
 {% endblock %}

@@ -74,6 +74,7 @@ class MQTTClient:
             self.subscribe(self.app.config['MQTT_TOPIC_HUMIDITY'])
             self.subscribe(self.app.config['MQTT_TOPIC_LIGHT'])
             self.subscribe(self.app.config['MQTT_TOPIC_DEVICE_STATUS'])
+            self.subscribe(self.app.config['MQTT_TOPIC_DEVICE_CONTROL'])  # Subscribe to control topics
             
             # Subscribe to legacy topics for backward compatibility
             if hasattr(self.app.config, 'MQTT_LEGACY_TOPIC_TEMPERATURE'):
@@ -81,6 +82,8 @@ class MQTTClient:
                 self.subscribe(self.app.config['MQTT_LEGACY_TOPIC_HUMIDITY'])
                 self.subscribe(self.app.config['MQTT_LEGACY_TOPIC_LIGHT'])
                 self.subscribe(self.app.config['MQTT_LEGACY_TOPIC_DEVICE_STATUS'])
+                if hasattr(self.app.config, 'MQTT_LEGACY_TOPIC_DEVICE_CONTROL'):
+                    self.subscribe(self.app.config['MQTT_LEGACY_TOPIC_DEVICE_CONTROL'])
         else:
             self.is_connected = False
             self.logger.error(f"Failed to connect to MQTT broker with result code {rc}")
@@ -177,6 +180,28 @@ class MQTTClient:
                                     'floor': device.floor,
                                     'location': device.location,
                                     'status': status,
+                                    'timestamp': datetime.utcnow().isoformat()
+                                }
+                            )
+                        
+                        elif measurement_type == 'control':
+                            # Handle control messages
+                            control_action = data.get('action')
+                            control_value = data.get('value')
+                            
+                            # Update device state based on control action
+                            if hasattr(device, 'state'):
+                                device.state = control_value
+                            
+                            # Emit control event to Socket.IO
+                            self.socketio.emit(
+                                'device_control', 
+                                {
+                                    'device_id': device.device_id,
+                                    'floor': device.floor,
+                                    'location': device.location,
+                                    'action': control_action,
+                                    'value': control_value,
                                     'timestamp': datetime.utcnow().isoformat()
                                 }
                             )

@@ -1,0 +1,76 @@
+/* Socket connection status indicator styles */
+.socket-status-indicator {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  z-index: 9999;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+  transition: all 0.3s ease;
+}
+
+.socket-status-indicator.connected {
+  background-color: #28a745;
+  box-shadow: 0 0 8px rgba(40, 167, 69, 0.8);
+}
+
+.socket-status-indicator.disconnected {
+  background-color: #ffc107;
+  box-shadow: 0 0 8px rgba(255, 193, 7, 0.8);
+}
+
+.socket-status-indicator.error {
+  background-color: #dc3545;
+  box-shadow: 0 0 8px rgba(220, 53, 69, 0.8);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* Alerts container */
+.alerts-fixed {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 9999;
+  max-width: 400px;
+}
+
+.alerts-fixed .alert {
+  margin-bottom: 10px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Connection status indicator in the header */
+#connection-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 10px;
+  border-radius: 4px;
+  background-color: rgba(0, 0, 0, 0.05);
+  margin-left: 10px;
+}
+
+#connection-status i {
+  margin-right: 5px;
+}
+
+#connection-status.text-success {
+  background-color: rgba(40, 167, 69, 0.1);
+}
+
+#connection-status.text-danger {
+  background-color: rgba(220, 53, 69, 0.1);
+}

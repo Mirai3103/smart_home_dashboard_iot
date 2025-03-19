@@ -2,87 +2,246 @@
 let socket;
 let deviceData = {}; // Cache for device data
 let lastUpdateTimes = {}; // Cache for last update times
+let connectionRetryCount = 0;
+let maxRetries = 10;
+let reconnectTimer = null;
+
+// Make sure to use the correct token name
+const ACCESS_TOKEN_KEY = 'accessToken'; // This should match what's used elsewhere
 
 document.addEventListener('DOMContentLoaded', function() {
-    initializeSocket();
+    // Delay socket initialization to ensure page is loaded
+    setTimeout(() => {
+        initializeSocket();
+    }, 300);
 });
 
 // Initialize Socket.IO connection
 function initializeSocket() {
-    // Connect to Socket.IO server
-    socket = io();
+    // Get access token from local storage - use the correct key
+    const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
     
-    // Connection events
-    socket.on('connect', () => {
-        console.log('Connected to server');
-        updateConnectionStatus('connected');
-    });
-    
-    socket.on('disconnect', () => {
-        console.log('Disconnected from server');
-        updateConnectionStatus('disconnected');
-    });
-    
-    // Handle sensor data updates
-    socket.on('sensor_update', (data) => {
-        console.log('Sensor update received:', data);
-        
-        // Update device data cache
-        const deviceId = data.device_id;
-        if (!deviceData[deviceId]) {
-            deviceData[deviceId] = {};
-        }
-        
-        // Update values
-        deviceData[deviceId] = {
-            ...deviceData[deviceId],
-            ...data
+    // Prevent errors that could crash the connection
+    try {
+        // Use an options object with connection settings optimized for stability
+        const options = {
+            auth: {
+                token: accessToken
+            },
+            reconnection: true,
+            reconnectionAttempts: 5,
+            reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000,
+            timeout: 20000,
+            forceNew: false,
+            transports: ['websocket', 'polling'], // Try WebSocket first, fall back to polling
+            upgrade: true,
+            rememberUpgrade: true,
+            autoConnect: true
         };
         
-        // Update last update time
-        lastUpdateTimes[deviceId] = new Date();
+        // Log connection attempt
+        console.log('Initializing Socket.IO connection...');
         
-        // Update UI
-        updateDeviceUI(deviceId, data);
+        // Try to connect with error handling
+        socket = io(options);
         
-        // Update charts if they exist
-        updateCharts(deviceId, data);
-    });
-    
-    // Handle device status updates
-    socket.on('device_status', (data) => {
-        console.log('Device status update received:', data);
-        
-        const deviceId = data.device_id;
-        
-        // Update device status indicators
-        const statusIndicators = document.querySelectorAll(`.device-status[data-device-id="${deviceId}"]`);
-        statusIndicators.forEach(indicator => {
-            // Remove all status classes
-            indicator.classList.remove('status-online', 'status-offline', 'status-error');
-            // Add appropriate class
-            indicator.classList.add(`status-${data.status}`);
+        // Connection events
+        socket.on('connect', () => {
+            console.log('Connected to server');
+            updateConnectionStatus('connected');
+            connectionRetryCount = 0;
             
-            // Update tooltip if exists
-            const tooltip = bootstrap.Tooltip.getInstance(indicator);
-            if (tooltip) {
-                tooltip.setContent({ '.tooltip-inner': `Status: ${data.status}` });
+            // Clear any pending reconnect timers
+            if (reconnectTimer) {
+                clearTimeout(reconnectTimer);
+                reconnectTimer = null;
             }
         });
         
-        // Update status text if exists
-        const statusTexts = document.querySelectorAll(`.device-status-text[data-device-id="${deviceId}"]`);
-        statusTexts.forEach(element => {
-            element.textContent = data.status;
+        socket.on('disconnect', (reason) => {
+            console.log('Disconnected from server:', reason);
+            updateConnectionStatus('disconnected');
+            
+            // Handle transport-close more aggressively
+            if (reason === 'transport close' || reason === 'ping timeout') {
+                // This indicates a problematic connection
+                // Schedule manual reconnection with increasing delay
+                scheduleManualReconnect();
+            }
         });
         
-        // Update timestamp if exists
-        const timestamps = document.querySelectorAll(`.device-last-seen[data-device-id="${deviceId}"]`);
-        timestamps.forEach(element => {
-            element.textContent = formatRelativeTime(data.timestamp);
-            element.setAttribute('title', formatDate(data.timestamp));
+        // Authentication error
+        socket.on('connect_error', (err) => {
+            console.error('Connection error:', err.message);
+            updateConnectionStatus('disconnected');
+            
+            // If authentication error, redirect to login
+            if (err.message === 'Authentication error' || err.message.includes('auth')) {
+                showAlert('Authentication failed. Please log in again.', 'danger');
+                localStorage.removeItem(ACCESS_TOKEN_KEY);
+                // Redirect to login after a delay
+                setTimeout(() => {
+                    window.location.href = '/login';
+                }, 2000);
+            } else {
+                // For other types of errors, handle reconnect logic
+                handleReconnect();
+            }
         });
-    });
+        
+        // Error event (transport-level)
+        socket.io.on('error', (error) => {
+            console.error('Transport error:', error);
+            updateConnectionStatus('error');
+            
+            // Force reconnect for transport-level errors
+            scheduleManualReconnect(true);
+        });
+        
+        // Handle sensor data updates
+        socket.on('sensor_update', (data) => {
+            try {
+                console.log('Sensor update received:', data);
+                
+                // Only process if data is valid
+                if (!data || !data.device_id) {
+                    console.error('Invalid sensor data received:', data);
+                    return;
+                }
+                
+                const deviceId = data.device_id;
+                
+                // Update device data cache
+                if (!deviceData[deviceId]) {
+                    deviceData[deviceId] = {};
+                }
+                
+                // Update values
+                deviceData[deviceId] = {
+                    ...deviceData[deviceId],
+                    ...data
+                };
+                
+                // Update last update time
+                lastUpdateTimes[deviceId] = new Date();
+                
+                // Update UI
+                updateDeviceUI(deviceId, data);
+                
+                // Update charts if they exist
+                updateCharts(deviceId, data);
+            } catch (error) {
+                // Prevent event handling errors from breaking the connection
+                console.error('Error handling sensor update:', error);
+            }
+        });
+        
+        // Handle device status updates
+        socket.on('device_status', (data) => {
+            try {
+                console.log('Device status update received:', data);
+                
+                // Validate data
+                if (!data || !data.device_id || !data.status) {
+                    console.error('Invalid device status data:', data);
+                    return;
+                }
+                
+                const deviceId = data.device_id;
+                
+                // Update device status indicators
+                const statusIndicators = document.querySelectorAll(`.device-status[data-device-id="${deviceId}"]`);
+                statusIndicators.forEach(indicator => {
+                    // Remove all status classes
+                    indicator.classList.remove('status-online', 'status-offline', 'status-error');
+                    // Add appropriate class
+                    indicator.classList.add(`status-${data.status}`);
+                    
+                    // Update tooltip if exists
+                    if (window.bootstrap && indicator.hasAttribute('data-bs-toggle')) {
+                        const tooltip = bootstrap.Tooltip.getInstance(indicator);
+                        if (tooltip) {
+                            tooltip.setContent({ '.tooltip-inner': `Status: ${data.status}` });
+                        }
+                    }
+                });
+                
+                // Update status text if exists
+                const statusTexts = document.querySelectorAll(`.device-status-text[data-device-id="${deviceId}"]`);
+                statusTexts.forEach(element => {
+                    element.textContent = data.status;
+                });
+                
+                // Update timestamp if exists
+                if (data.timestamp) {
+                    const timestamps = document.querySelectorAll(`.device-last-seen[data-device-id="${deviceId}"]`);
+                    timestamps.forEach(element => {
+                        element.textContent = formatRelativeTime(data.timestamp);
+                        element.setAttribute('title', formatDate(data.timestamp));
+                    });
+                }
+            } catch (error) {
+                // Prevent event handling errors from breaking the connection
+                console.error('Error handling device status update:', error);
+            }
+        });
+        
+    } catch (error) {
+        // Catch any initialization errors
+        console.error('Socket initialization error:', error);
+        updateConnectionStatus('error');
+    }
+}
+
+function handleReconnect() {
+    // Increment retry count
+    connectionRetryCount++;
+    console.log(`Connection attempt ${connectionRetryCount} failed`);
+    
+    // After several automatic attempts, try manual reconnection
+    if (socket && connectionRetryCount > socket.io.opts.reconnectionAttempts) {
+        console.log('Automatic reconnection attempts exhausted');
+        scheduleManualReconnect();
+    }
+}
+
+function scheduleManualReconnect(immediate = false) {
+    // Clear any existing timer
+    if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+    }
+    
+    // Calculate delay with exponential backoff
+    const delay = immediate ? 100 : Math.min(30000, 1000 * Math.pow(2, Math.min(connectionRetryCount, 10) - 1));
+    
+    console.log(`Scheduling manual reconnect in ${delay}ms (attempt ${connectionRetryCount})`);
+    
+    reconnectTimer = setTimeout(() => {
+        console.log('Attempting manual reconnection...');
+        
+        if (socket) {
+            // Ensure disconnected state
+            if (socket.connected) {
+                socket.disconnect();
+            }
+            
+            // Force a refresh of the socket instance
+            if (connectionRetryCount > 5) {
+                socket.io.engine.close();
+                setTimeout(() => socket.connect(), 100);
+            } else {
+                // Simple reconnect
+                socket.connect();
+            }
+        } else {
+            // If socket object is lost, reinitialize
+            initializeSocket();
+        }
+        
+        reconnectTimer = null;
+    }, delay);
 }
 
 // Update UI connection status
@@ -90,189 +249,105 @@ function updateConnectionStatus(status) {
     const statusIndicator = document.getElementById('connection-status');
     if (!statusIndicator) return;
     
+    // Remove all status classes first
+    statusIndicator.classList.remove('text-success', 'text-danger', 'text-warning');
+    
     if (status === 'connected') {
-        statusIndicator.classList.remove('text-danger');
         statusIndicator.classList.add('text-success');
         statusIndicator.querySelector('i').className = 'fas fa-circle';
         statusIndicator.querySelector('span').textContent = 'Connected';
-    } else {
-        statusIndicator.classList.remove('text-success');
-        statusIndicator.classList.add('text-danger');
+    } else if (status === 'disconnected') {
+        statusIndicator.classList.add('text-warning');
         statusIndicator.querySelector('i').className = 'fas fa-exclamation-circle';
         statusIndicator.querySelector('span').textContent = 'Disconnected';
+    } else if (status === 'error') {
+        statusIndicator.classList.add('text-danger');
+        statusIndicator.querySelector('i').className = 'fas fa-times-circle';
+        statusIndicator.querySelector('span').textContent = 'Connection Error';
+    }
+    
+    // Also update socket status indicator if it exists
+    const socketStatusIndicator = document.getElementById('socket-connection-status');
+    if (socketStatusIndicator) {
+        socketStatusIndicator.className = `socket-status-indicator ${status}`;
     }
 }
 
-// Update device UI with new data
-function updateDeviceUI(deviceId, data) {
-    // Update value displays
-    const valueDisplays = document.querySelectorAll(`.value-display[data-device-id="${deviceId}"]`);
-    valueDisplays.forEach(display => {
-        display.textContent = parseFloat(data.value).toFixed(1);
-    });
-    
-    // Update simple value displays
-    const simpleValueDisplays = document.querySelectorAll(`.device-value[data-device-id="${deviceId}"]`);
-    simpleValueDisplays.forEach(display => {
-        display.textContent = parseFloat(data.value).toFixed(1);
-    });
-    
-    // Update last updated timestamps
-    const updateTimeElements = document.querySelectorAll(`.last-updated-time[data-device-id="${deviceId}"]`);
-    const formattedTime = formatRelativeTime(data.timestamp);
-    
-    updateTimeElements.forEach(element => {
-        element.textContent = formattedTime;
-        element.setAttribute('title', formatDate(data.timestamp));
-    });
-    
-    // Update device cards if they need special handling based on type
-    if (data.type === 'temperature') {
-        updateTemperatureUI(deviceId, data.value);
-    } else if (data.type === 'humidity') {
-        updateHumidityUI(deviceId, data.value);
-    } else if (data.type === 'light') {
-        updateLightUI(deviceId, data.value);
+// Safely reset the socket connection
+function resetSocketConnection() {
+    if (socket) {
+        try {
+            socket.disconnect();
+        } catch (e) {
+            console.error('Error disconnecting socket:', e);
+        }
     }
+    
+    // Reset connection retry count
+    connectionRetryCount = 0;
+    
+    // Clear any pending timers
+    if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+    }
+    
+    // Attempt to reinitialize after a delay
+    setTimeout(() => {
+        initializeSocket();
+    }, 1000);
 }
 
-// Update temperature specific UI elements
-function updateTemperatureUI(deviceId, value) {
-    const tempValue = parseFloat(value);
-    
-    // Get all temperature indicators
-    const indicators = document.querySelectorAll(`.temp-indicator[data-device-id="${deviceId}"]`);
-    
-    indicators.forEach(indicator => {
-        // Remove existing classes
-        indicator.classList.remove('text-primary', 'text-success', 'text-warning', 'text-danger');
+// Format relative time (e.g., "5 minutes ago")
+function formatRelativeTime(timestamp) {
+    try {
+        const date = new Date(timestamp);
+        const now = new Date();
+        const diffMs = now - date;
         
-        // Add appropriate class based on temperature
-        if (tempValue < 18) {
-            indicator.classList.add('text-primary'); // Cold
-        } else if (tempValue >= 18 && tempValue < 24) {
-            indicator.classList.add('text-success'); // Comfortable
-        } else if (tempValue >= 24 && tempValue < 30) {
-            indicator.classList.add('text-warning'); // Warm
-        } else {
-            indicator.classList.add('text-danger'); // Hot
-        }
-    });
-}
-
-// Update humidity specific UI elements
-function updateHumidityUI(deviceId, value) {
-    const humValue = parseFloat(value);
-    
-    // Get all humidity indicators
-    const indicators = document.querySelectorAll(`.humidity-indicator[data-device-id="${deviceId}"]`);
-    
-    indicators.forEach(indicator => {
-        // Remove existing classes
-        indicator.classList.remove('text-danger', 'text-warning', 'text-success', 'text-info');
+        if (isNaN(diffMs)) return 'unknown';
         
-        // Add appropriate class based on humidity
-        if (humValue < 30) {
-            indicator.classList.add('text-danger'); // Very dry
-        } else if (humValue >= 30 && humValue < 40) {
-            indicator.classList.add('text-warning'); // Dry
-        } else if (humValue >= 40 && humValue < 60) {
-            indicator.classList.add('text-success'); // Comfortable
-        } else {
-            indicator.classList.add('text-info'); // Humid
-        }
-    });
-}
-
-// Update light specific UI elements
-function updateLightUI(deviceId, value) {
-    const lightValue = parseFloat(value);
-    
-    // Get all light indicators
-    const indicators = document.querySelectorAll(`.light-indicator[data-device-id="${deviceId}"]`);
-    
-    indicators.forEach(indicator => {
-        // Remove existing classes
-        indicator.classList.remove('text-secondary', 'text-primary', 'text-warning');
+        const diffSec = Math.round(diffMs / 1000);
         
-        // Add appropriate class based on light level
-        if (lightValue < 100) {
-            indicator.classList.add('text-secondary'); // Dark
-        } else if (lightValue >= 100 && lightValue < 500) {
-            indicator.classList.add('text-primary'); // Moderate
-        } else {
-            indicator.classList.add('text-warning'); // Bright
-        }
-    });
-    
-    // Light bulb UI updates if they exist
-    const lightBulbs = document.querySelectorAll(`.light-bulb[data-device-id="${deviceId}"]`);
-    lightBulbs.forEach(bulb => {
-        if (lightValue > 0) {
-            bulb.classList.add('text-warning');
-            bulb.classList.remove('text-secondary');
-        } else {
-            bulb.classList.add('text-secondary');
-            bulb.classList.remove('text-warning');
-        }
-    });
+        if (diffSec < 60) return 'just now';
+        if (diffSec < 3600) return `${Math.round(diffSec / 60)} minute(s) ago`;
+        if (diffSec < 86400) return `${Math.round(diffSec / 3600)} hour(s) ago`;
+        return `${Math.round(diffSec / 86400)} day(s) ago`;
+    } catch (e) {
+        console.error('Error formatting relative time:', e);
+        return 'unknown';
+    }
 }
 
-// Device control function
-function controlDevice(deviceId, action, value = null) {
-    // Check if socket is connected
-    if (!socket || !socket.connected) {
-        showAlert('Not connected to server. Please refresh the page.', 'danger');
-        return;
+// Format date as a string
+function formatDate(timestamp) {
+    try {
+        return new Date(timestamp).toLocaleString();
+    } catch (e) {
+        return 'Invalid date';
     }
-    
-    // Prepare data
-    const data = {
-        action: action
-    };
-    
-    if (value !== null) {
-        data.value = value;
-    }
-    
-    // Show loading UI if needed
-    const controlButtons = document.querySelectorAll(`.device-control[data-device-id="${deviceId}"]`);
-    controlButtons.forEach(button => {
-        button.disabled = true;
-        if (button.querySelector('.spinner-border')) {
-            button.querySelector('.spinner-border').classList.remove('d-none');
-        }
-    });
-    
-    // Send control request via API
-    apiRequest(`/api/devices/${deviceId}/control`, 'POST', data)
-        .then(response => {
-            console.log('Control response:', response);
-            if (response.success) {
-                showAlert(`Command sent: ${action}`, 'success');
-            } else {
-                showAlert(response.message || 'Failed to send command', 'danger');
-            }
-        })
-        .catch(error => {
-            console.error('Control error:', error);
-            showAlert('Error sending command', 'danger');
-        })
-        .finally(() => {
-            // Reset UI
-            controlButtons.forEach(button => {
-                button.disabled = false;
-                if (button.querySelector('.spinner-border')) {
-                    button.querySelector('.spinner-border').classList.add('d-none');
-                }
-            });
-        });
 }
 
-// Update charts with new data
-function updateCharts(deviceId, data) {
-    // This will be implemented in charts.js
-    if (typeof updateDeviceChart === 'function') {
-        updateDeviceChart(deviceId, data);
+// Expose function to manually reconnect
+window.resetSocketConnection = resetSocketConnection;
+
+// Prevent WebSocket errors from crashing the page
+window.addEventListener('error', function(event) {
+    // Check if the error is related to Socket.IO or WebSocket
+    if (event.message && 
+        (event.message.includes('websocket') || 
+         event.message.includes('socket') || 
+         event.message.includes('connection') ||
+         event.message.includes('WebSocket'))) {
+        console.error('Socket error handled:', event.message);
+        event.preventDefault();
+        
+        // Try to reconnect if it's a socket error
+        if (!reconnectTimer && socket) {
+            scheduleManualReconnect();
+        }
+        
+        return true;
     }
-}
+    return false;
+});

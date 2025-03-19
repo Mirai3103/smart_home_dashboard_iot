@@ -79,7 +79,7 @@ block custom_css %}
         <i class="fas fa-thermometer-half"></i>
       </div>
       <div class="stat-card-title">Average Temperature</div>
-      <div class="stat-card-value" id="avg-temperature">--°C</div>
+      <div class="stat-card-value" id="avg-temperature">30°C</div>
     </div>
   </div>
   <div class="col-md-3 col-sm-6">
@@ -88,7 +88,7 @@ block custom_css %}
         <i class="fas fa-tint"></i>
       </div>
       <div class="stat-card-title">Average Humidity</div>
-      <div class="stat-card-value" id="avg-humidity">--%</div>
+      <div class="stat-card-value" id="avg-humidity">30%</div>
     </div>
   </div>
 </div>
@@ -374,6 +374,34 @@ spaces for leisure and recreational activities." } %} {% for floor_num in floors
           </div>
           <canvas></canvas>
         </div>
+
+        <!-- Device Control Panel for Temperature -->
+        <div class="device-control-panel mt-3 pt-3 border-top">
+          <h6><i class="fas fa-sliders-h me-2"></i>Temperature Controls</h6>
+          <div class="d-flex flex-wrap justify-content-start">
+            <button
+              class="btn btn-sm btn-outline-primary me-2 mb-2 device-action-btn"
+              data-device-id="temp_living_room_f1"
+              data-action="calibrate"
+            >
+              <i class="fas fa-sync-alt me-1"></i>Calibrate
+            </button>
+            <button
+              class="btn btn-sm btn-outline-warning me-2 mb-2 device-action-btn"
+              data-device-id="temp_living_room_f1"
+              data-action="set_threshold"
+            >
+              <i class="fas fa-thermometer-half me-1"></i>Set Threshold
+            </button>
+            <button
+              class="btn btn-sm btn-outline-info me-2 mb-2 device-action-btn"
+              data-device-id="temp_living_room_f1"
+              data-action="power_save"
+            >
+              <i class="fas fa-leaf me-1"></i>Power Save
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -410,12 +438,42 @@ spaces for leisure and recreational activities." } %} {% for floor_num in floors
           </div>
           <canvas></canvas>
         </div>
+
+        <!-- Device Control Panel for Humidity -->
+        <div class="device-control-panel mt-3 pt-3 border-top">
+          <h6><i class="fas fa-sliders-h me-2"></i>Humidity Controls</h6>
+          <div class="d-flex flex-wrap justify-content-start">
+            <button
+              class="btn btn-sm btn-outline-primary me-2 mb-2 device-action-btn"
+              data-device-id="humidity_living_room_f1"
+              data-action="calibrate"
+            >
+              <i class="fas fa-sync-alt me-1"></i>Calibrate
+            </button>
+            <button
+              class="btn btn-sm btn-outline-warning me-2 mb-2 device-action-btn"
+              data-device-id="humidity_living_room_f1"
+              data-action="set_threshold"
+            >
+              <i class="fas fa-tint me-1"></i>Set Threshold
+            </button>
+            <button
+              class="btn btn-sm btn-outline-info me-2 mb-2 device-action-btn"
+              data-device-id="humidity_living_room_f1"
+              data-action="auto_mode"
+            >
+              <i class="fas fa-magic me-1"></i>Auto Mode
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 </div>
 {% endblock %} {% block custom_js %}
 <script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+<script src="{{ url_for('static', filename='js/socket_recovery.js') }}"></script>
+<script src="{{ url_for('static', filename='js/socket_ping.js') }}"></script>
 <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 <script>
   // Floor navigation functionality
@@ -458,6 +516,140 @@ spaces for leisure and recreational activities." } %} {% for floor_num in floors
       if (floorButton) {
         floorButton.click();
       }
+    }
+
+    // Device control functionality - Send commands to Shiftr.io
+    const deviceActionButtons = document.querySelectorAll('.device-action-btn');
+
+    deviceActionButtons.forEach((btn) => {
+      btn.addEventListener('click', function () {
+        const deviceId = this.getAttribute('data-device-id');
+        const action = this.getAttribute('data-action');
+        let payload = {};
+
+        // Different actions for different device types
+        if (deviceId.includes('temp')) {
+          if (action === 'calibrate') {
+            payload = { command: 'calibrate', value: 0, unit: 'celsius' };
+          } else if (action === 'set_threshold') {
+            const threshold = prompt('Enter temperature threshold (°C):', '25');
+            if (threshold === null) return; // User canceled
+            payload = {
+              command: 'set_threshold',
+              value: parseFloat(threshold),
+              unit: 'celsius',
+            };
+          } else if (action === 'power_save') {
+            payload = { command: 'power_save', value: true };
+          }
+        } else if (deviceId.includes('humidity')) {
+          if (action === 'calibrate') {
+            payload = { command: 'calibrate', value: 0, unit: 'percent' };
+          } else if (action === 'set_threshold') {
+            const threshold = prompt('Enter humidity threshold (%):', '50');
+            if (threshold === null) return; // User canceled
+            payload = {
+              command: 'set_threshold',
+              value: parseFloat(threshold),
+              unit: 'percent',
+            };
+          } else if (action === 'auto_mode') {
+            payload = { command: 'auto_mode', value: true };
+          }
+        } else if (deviceId.includes('light')) {
+          if (action === 'toggle') {
+            const currentState = this.getAttribute('data-state') === 'on';
+            const newState = !currentState;
+            this.setAttribute('data-state', newState ? 'on' : 'off');
+            payload = { command: 'power', value: newState };
+          } else if (action === 'brightness') {
+            const brightness = prompt('Enter brightness level (0-100):', '50');
+            if (brightness === null) return; // User canceled
+            payload = {
+              command: 'brightness',
+              value: parseInt(brightness),
+              unit: 'percent',
+            };
+          } else if (action === 'color_temp') {
+            const colorTemp = prompt(
+              'Enter color temperature (2700-6500K):',
+              '4000'
+            );
+            if (colorTemp === null) return; // User canceled
+            payload = {
+              command: 'color_temp',
+              value: parseInt(colorTemp),
+              unit: 'kelvin',
+            };
+          }
+        }
+
+        // Send command to device via Shiftr.io
+        sendDeviceCommand(deviceId, action, payload);
+
+        // Show feedback to user
+        showCommandFeedback(deviceId, action);
+      });
+    });
+
+    function sendDeviceCommand(deviceId, action, payload) {
+      // Add timestamp and device ID to payload
+      payload.timestamp = new Date().toISOString();
+      payload.device_id = deviceId;
+      payload.action = action;
+
+      // Send to backend API, which will forward to Shiftr.io
+      fetch('/api/device_control', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      })
+        .then((response) => response.json())
+        .then((data) => {
+          console.log('Command sent successfully:', data);
+        })
+        .catch((error) => {
+          console.error('Error sending command:', error);
+          alert('Failed to send command to device. Please try again.');
+        });
+    }
+
+    function showCommandFeedback(deviceId, action) {
+      // Display a temporary notification near the device
+      const deviceElement = document.querySelector(
+        `[data-device-id="${deviceId}"]`
+      );
+      if (!deviceElement) return;
+
+      const feedbackElement = document.createElement('div');
+      feedbackElement.classList.add(
+        'command-feedback',
+        'alert',
+        'alert-success',
+        'position-absolute'
+      );
+      feedbackElement.style.top = '10px';
+      feedbackElement.style.right = '10px';
+      feedbackElement.style.zIndex = '100';
+      feedbackElement.style.opacity = '0';
+      feedbackElement.style.transition = 'opacity 0.3s ease-in-out';
+      feedbackElement.textContent = `Command "${action}" sent!`;
+
+      deviceElement.style.position = 'relative';
+      deviceElement.appendChild(feedbackElement);
+
+      // Show and then fade out
+      setTimeout(() => {
+        feedbackElement.style.opacity = '1';
+      }, 10);
+      setTimeout(() => {
+        feedbackElement.style.opacity = '0';
+        setTimeout(() => {
+          feedbackElement.remove();
+        }, 300);
+      }, 2000);
     }
   });
 </script>

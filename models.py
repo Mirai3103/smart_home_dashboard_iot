@@ -18,6 +18,12 @@ class User(UserMixin, db.Model):
     is_admin = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_login = db.Column(db.DateTime)
+    access_token = db.Column(db.String(256), nullable=True)
+    token_expiry = db.Column(db.DateTime, nullable=True)
+    
+    # API access token
+    access_token = db.Column(db.String(128), unique=True, index=True)
+    token_expiry = db.Column(db.DateTime)
     
     # Relationships
     homes = db.relationship('Home', backref='owner', lazy=True)
@@ -43,7 +49,9 @@ class User(UserMixin, db.Model):
             'last_name': self.last_name,
             'is_admin': self.is_admin,
             'created_at': self.created_at.isoformat() if self.created_at else None,
-            'last_login': self.last_login.isoformat() if self.last_login else None
+            'last_login': self.last_login.isoformat() if self.last_login else None,
+            'access_token': self.access_token,
+            'token_expiry': self.token_expiry.isoformat() if self.token_expiry else None
         }
 
 

@@ -23,7 +23,7 @@ class Config:
     # MQTT topics
     MQTT_TOPIC_TEMPERATURE = 'home/+/+/temperature'  # Updated for floor: home/floorX/room/temperature
     MQTT_TOPIC_HUMIDITY = 'home/+/+/humidity'
-    MQTT_TOPIC_LIGHT = 'home/+/+/light'
+    MQTT_TOPIC_LIGHT = 'home/+/+/light'  # Fixed from humidity to light
     MQTT_TOPIC_DEVICE_STATUS = 'home/+/+/status'
     MQTT_TOPIC_DEVICE_CONTROL = 'home/+/+/control'
     
@@ -32,6 +32,7 @@ class Config:
     MQTT_LEGACY_TOPIC_HUMIDITY = 'home/+/humidity'
     MQTT_LEGACY_TOPIC_LIGHT = 'home/+/light'
     MQTT_LEGACY_TOPIC_DEVICE_STATUS = 'home/+/status'
+    MQTT_LEGACY_TOPIC_DEVICE_CONTROL = 'home/+/control'  # Added missing legacy control topic
     
     # Other settings
     DATA_RETENTION_DAYS = 30  # Default data retention period
