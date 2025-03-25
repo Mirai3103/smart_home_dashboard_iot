@@ -38,6 +38,30 @@ block custom_css %}
       </p>
     </div>
     <div class="col-md-6 text-md-end">
+      {% if current_user.is_admin and homes|length > 1 %}
+      <div class="dropdown mb-3">
+        <button
+          class="btn btn-primary dropdown-toggle"
+          type="button"
+          id="homeSelector"
+          data-bs-toggle="dropdown"
+          aria-expanded="false"
+        >
+          <i class="fas fa-home me-1"></i> Select Home
+        </button>
+        <ul class="dropdown-menu" aria-labelledby="homeSelector">
+          {% for home in homes %}
+          <li>
+            <a
+              class="dropdown-item"
+              href="{{ url_for('dashboard', home_id=home.id) }}"
+              >{{ home.name }}</a
+            >
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% else %}
       <div class="btn-group floor-nav" role="group">
         <button
           type="button"
@@ -47,9 +71,58 @@ block custom_css %}
           <i class="fas fa-home me-1"></i> All Rooms
         </button>
       </div>
+      {% endif %}
     </div>
   </div>
 </div>
+
+<!-- Check if user has a home -->
+{% if not homes %}
+<div class="alert alert-info">
+  <i class="fas fa-info-circle me-2"></i>
+  You don't have any homes assigned yet. Please contact the administrator to set
+  up your smart home.
+</div>
+{% elif not current_home %}
+<div class="alert alert-warning">
+  <i class="fas fa-exclamation-triangle me-2"></i>
+  Please select a home to view its dashboard.
+</div>
+{% else %}
+
+<!-- Display the current home information -->
+<div class="card mb-4">
+  <div class="card-header bg-primary text-white">
+    <h5 class="mb-0">
+      <i class="fas fa-home me-2"></i>{{ current_home.name }}
+    </h5>
+  </div>
+  <div class="card-body">
+    <p><i class="fas fa-map-marker-alt me-2"></i>{{ current_home.address }}</p>
+    {% if current_user.is_admin or current_home.owner_id == current_user.id %}
+    <span class="badge bg-success">
+      <i class="fas fa-user-check me-1"></i>
+      {% if current_home.owner_id == current_user.id %}Owner{% else %}Admin
+      Access{% endif %}
+    </span>
+    {% else %}
+    <span class="badge bg-info">
+      <i class="fas fa-user-friends me-1"></i>Guest Access
+    </span>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Check if home has any devices -->
+{% set total_devices = 0 %} {% for floor in current_home.floors %} {% for room
+in floor.rooms %} {% set total_devices = total_devices + room.devices|length %}
+{% endfor %} {% endfor %} {% if total_devices == 0 %}
+<div class="alert alert-info">
+  <i class="fas fa-info-circle me-2"></i>
+  This home doesn't have any devices registered yet. Please contact the
+  administrator to set up smart home devices.
+</div>
+{% else %}
 
 <!-- Dashboard Stats Summary -->
 <div class="row dashboard-stats">
@@ -59,18 +132,22 @@ block custom_css %}
         <i class="fas fa-microchip"></i>
       </div>
       <div class="stat-card-title">Connected Devices</div>
-      <div class="stat-card-value">{{ devices|length }}</div>
+      <div class="stat-card-value">{{ total_devices }}</div>
     </div>
   </div>
+
+  {% set online_devices = 0 %} {% for floor in current_home.floors %} {% for
+  room in floor.rooms %} {% for device in room.devices %} {% if device.status ==
+  'online' %} {% set online_devices = online_devices + 1 %} {% endif %} {%
+  endfor %} {% endfor %} {% endfor %}
+
   <div class="col-md-3 col-sm-6">
     <div class="stat-card">
       <div class="stat-card-icon text-success">
         <i class="fas fa-wifi"></i>
       </div>
       <div class="stat-card-title">Online Devices</div>
-      <div class="stat-card-value">
-        {{ devices|selectattr('status', 'equalto', 'online')|list|length }}
-      </div>
+      <div class="stat-card-value">{{ online_devices }}</div>
     </div>
   </div>
   <div class="col-md-3 col-sm-6">
@@ -106,24 +183,24 @@ block custom_css %}
         'info'}, 3: {'name': 'Entertainment & Leisure', 'icon': 'gamepad',
         'color': 'success'} } %}
 
-        <!-- Get all unique floors from the devices data -->
-        {% set floors = [] %} {% for device in devices %} {% if device.floor not
-        in floors %} {% set _ = floors.append(device.floor) %} {% endif %} {%
-        endfor %}
-
-        <!-- Sort floors numerically -->
-        {% set floors = floors|sort %} {% for floor_num in floors %} {% set
-        floor_info = floor_data.get(floor_num, {'name': 'Floor ' ~ floor_num,
-        'icon': 'building', 'color': 'secondary'}) %}
+        <!-- Get all floors from the current home -->
+        {% if current_home.floors %} {% for floor in
+        current_home.floors|sort(attribute='floor_number') %} {% set floor_info
+        = floor_data.get(floor.floor_number, {'name': floor.name or 'Floor ' ~
+        floor.floor_number, 'icon': 'building', 'color': 'secondary'}) %}
         <button
           type="button"
-          class="btn btn-outline-{{ floor_info['color'] }} floor-button {% if floor_num == 1 %}active{% endif %}"
-          data-floor="{{ floor_num }}"
+          class="btn btn-outline-{{ floor_info['color'] }} floor-button {% if loop.first %}active{% endif %}"
+          data-floor="{{ floor.floor_number }}"
         >
           <i class="fas fa-{{ floor_info['icon'] }} me-1"></i> {{
           floor_info['name'] }}
         </button>
-        {% endfor %}
+        {% endfor %} {% else %}
+        <div class="alert alert-warning w-100">
+          No floors available for this home
+        </div>
+        {% endif %}
       </div>
     </div>
   </div>
@@ -156,49 +233,43 @@ block custom_css %}
 {% set floor_descriptions = { 1: "The main floor contains common areas like the
 living room, kitchen, and dining room.", 2: "The residential floor contains
 bedrooms, bathrooms, and personal spaces.", 3: "The entertainment floor contains
-spaces for leisure and recreational activities." } %} {% for floor_num in floors
-%}
+spaces for leisure and recreational activities." } %} {% for floor in
+current_home.floors|sort(attribute='floor_number') %}
 <div
-  class="floor-container {% if floor_num == 1 %}active{% endif %}"
-  id="floor-{{ floor_num }}"
+  class="floor-container {% if loop.first %}active{% endif %}"
+  id="floor-{{ floor.floor_number }}"
 >
   <div class="floor-header">
-    {% set floor_info = floor_data.get(floor_num, {'name': 'Floor ' ~ floor_num,
-    'icon': 'building', 'color': 'secondary'}) %}
+    {% set floor_info = floor_data.get(floor.floor_number, {'name': floor.name
+    or 'Floor ' ~ floor.floor_number, 'icon': 'building', 'color': 'secondary'})
+    %}
     <h2>
       <i class="fas fa-{{ floor_info['icon'] }} me-2"></i>{{ floor_info['name']
       }}
     </h2>
     <p class="floor-description">
-      {{ floor_descriptions.get(floor_num, 'This floor contains various rooms
-      and devices.') }}
+      {{ floor_descriptions.get(floor.floor_number, 'This floor contains various
+      rooms and devices.') }}
     </p>
   </div>
 
-  <!-- Get all unique rooms for this floor -->
-  {% set rooms = [] %} {% for device in devices %} {% if device.floor ==
-  floor_num and device.location not in rooms %} {% set _ =
-  rooms.append(device.location) %} {% endif %} {% endfor %}
-
   <!-- Room cards for this floor -->
-  {% if rooms|length > 0 %} {% for room in rooms|sort %}
+  {% if floor.rooms %} {% for room in floor.rooms|sort(attribute='name') %}
   <div class="card mb-4">
-    {% set floor_info = floor_data.get(floor_num, {'name': 'Floor ' ~ floor_num,
-    'icon': 'building', 'color': 'secondary'}) %}
+    {% set floor_info = floor_data.get(floor.floor_number, {'name': floor.name
+    or 'Floor ' ~ floor.floor_number, 'icon': 'building', 'color': 'secondary'})
+    %}
     <div class="card-header bg-{{ floor_info['color'] }} text-white">
-      <h5 class="mb-0">
-        <i class="fas fa-door-open me-2"></i>{{ room|replace('_', ' ')|title }}
-      </h5>
+      <h5 class="mb-0"><i class="fas fa-door-open me-2"></i>{{ room.name }}</h5>
     </div>
     <div class="card-body">
       <div class="row">
-        {% for device in devices %} {% if device.floor == floor_num and
-        device.location == room %}
+        {% if room.devices %} {% for device in room.devices %}
         <div class="col-md-4 col-sm-6 mb-4 device-card-container">
           <div
             class="card device-card h-100"
-            data-room="{{ device.location }}"
-            data-floor="{{ device.floor }}"
+            data-room="{{ room.name|lower|replace(' ', '_') }}"
+            data-floor="{{ floor.floor_number }}"
             data-device-type="{{ device.type }}"
           >
             <div class="card-header">
@@ -211,7 +282,7 @@ spaces for leisure and recreational activities." } %} {% for floor_num in floors
                   {{ device.name }}
                 </h6>
                 <span class="badge bg-{{ floor_info['color'] }} rounded-pill">
-                  {{ device.location|replace('_', ' ')|title }}
+                  {{ room.name }}
                 </span>
               </div>
             </div>
@@ -321,14 +392,21 @@ spaces for leisure and recreational activities." } %} {% for floor_num in floors
             </div>
           </div>
         </div>
-        {% endif %} {% endfor %}
+        {% endfor %} {% else %}
+        <div class="col-12">
+          <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            No devices found in this room.
+          </div>
+        </div>
+        {% endif %}
       </div>
     </div>
   </div>
   {% endfor %} {% else %}
   <div class="alert alert-warning">
     <i class="fas fa-exclamation-triangle me-2"></i>
-    No devices found for this floor.
+    No rooms found for this floor.
   </div>
   {% endif %}
 </div>
@@ -340,7 +418,9 @@ spaces for leisure and recreational activities." } %} {% for floor_num in floors
 </h2>
 
 <div class="row">
-  <!-- Temperature Chart -->
+  <!-- Temperature Chart - Filter for first temperature device owned by the user -->
+  {% set user_temp_device = devices|selectattr('user_id', 'equalto',
+  current_user.id)|selectattr('type', 'equalto', 'temperature')|first %}
   <div class="col-md-6 mb-4">
     <div class="card h-100">
       <div class="card-header">
@@ -358,12 +438,13 @@ spaces for leisure and recreational activities." } %} {% for floor_num in floors
         </div>
       </div>
       <div class="card-body">
+        {% if user_temp_device %}
         <div
           class="chart-container"
-          data-device-id="temp_living_room_f1"
+          data-device-id="{{ user_temp_device.device_id }}"
           data-chart-type="line"
           data-device-type="temperature"
-          data-chart-url="/api/device_data/temperature?device_id=temp_living_room_f1&days=1&limit=100"
+          data-chart-url="/api/device_data/temperature?device_id={{ user_temp_device.device_id }}&days=1&limit=100"
         >
           <div class="chart-loading d-none">
             <div class="d-flex justify-content-center align-items-center h-100">
@@ -381,32 +462,40 @@ spaces for leisure and recreational activities." } %} {% for floor_num in floors
           <div class="d-flex flex-wrap justify-content-start">
             <button
               class="btn btn-sm btn-outline-primary me-2 mb-2 device-action-btn"
-              data-device-id="temp_living_room_f1"
+              data-device-id="{{ user_temp_device.device_id }}"
               data-action="calibrate"
             >
               <i class="fas fa-sync-alt me-1"></i>Calibrate
             </button>
             <button
               class="btn btn-sm btn-outline-warning me-2 mb-2 device-action-btn"
-              data-device-id="temp_living_room_f1"
+              data-device-id="{{ user_temp_device.device_id }}"
               data-action="set_threshold"
             >
               <i class="fas fa-thermometer-half me-1"></i>Set Threshold
             </button>
             <button
               class="btn btn-sm btn-outline-info me-2 mb-2 device-action-btn"
-              data-device-id="temp_living_room_f1"
+              data-device-id="{{ user_temp_device.device_id }}"
               data-action="power_save"
             >
               <i class="fas fa-leaf me-1"></i>Power Save
             </button>
           </div>
         </div>
+        {% else %}
+        <div class="alert alert-info">
+          <i class="fas fa-info-circle me-2"></i>
+          No temperature sensors found in your home.
+        </div>
+        {% endif %}
       </div>
     </div>
   </div>
 
-  <!-- Humidity Chart -->
+  <!-- Humidity Chart - Filter for first humidity device owned by the user -->
+  {% set user_humidity_device = devices|selectattr('user_id', 'equalto',
+  current_user.id)|selectattr('type', 'equalto', 'humidity')|first %}
   <div class="col-md-6 mb-4">
     <div class="card h-100">
       <div class="card-header">
@@ -422,12 +511,13 @@ spaces for leisure and recreational activities." } %} {% for floor_num in floors
         </div>
       </div>
       <div class="card-body">
+        {% if user_humidity_device %}
         <div
           class="chart-container"
-          data-device-id="humidity_living_room_f1"
+          data-device-id="{{ user_humidity_device.device_id }}"
           data-chart-type="line"
           data-device-type="humidity"
-          data-chart-url="/api/device_data/humidity?device_id=humidity_living_room_f1&days=1&limit=100"
+          data-chart-url="/api/device_data/humidity?device_id={{ user_humidity_device.device_id }}&days=1&limit=100"
         >
           <div class="chart-loading d-none">
             <div class="d-flex justify-content-center align-items-center h-100">
@@ -445,32 +535,38 @@ spaces for leisure and recreational activities." } %} {% for floor_num in floors
           <div class="d-flex flex-wrap justify-content-start">
             <button
               class="btn btn-sm btn-outline-primary me-2 mb-2 device-action-btn"
-              data-device-id="humidity_living_room_f1"
+              data-device-id="{{ user_humidity_device.device_id }}"
               data-action="calibrate"
             >
               <i class="fas fa-sync-alt me-1"></i>Calibrate
             </button>
             <button
               class="btn btn-sm btn-outline-warning me-2 mb-2 device-action-btn"
-              data-device-id="humidity_living_room_f1"
+              data-device-id="{{ user_humidity_device.device_id }}"
               data-action="set_threshold"
             >
               <i class="fas fa-tint me-1"></i>Set Threshold
             </button>
             <button
               class="btn btn-sm btn-outline-info me-2 mb-2 device-action-btn"
-              data-device-id="humidity_living_room_f1"
+              data-device-id="{{ user_humidity_device.device_id }}"
               data-action="auto_mode"
             >
               <i class="fas fa-magic me-1"></i>Auto Mode
             </button>
           </div>
         </div>
+        {% else %}
+        <div class="alert alert-info">
+          <i class="fas fa-info-circle me-2"></i>
+          No humidity sensors found in your home.
+        </div>
+        {% endif %}
       </div>
     </div>
   </div>
 </div>
-{% endblock %} {% block custom_js %}
+{% endif %} {% endif %} {% endblock %} {% block custom_js %}
 <script src="{{ url_for('static', filename='js/charts.js') }}"></script>
 <script src="{{ url_for('static', filename='js/socket_recovery.js') }}"></script>
 <script src="{{ url_for('static', filename='js/socket_ping.js') }}"></script>

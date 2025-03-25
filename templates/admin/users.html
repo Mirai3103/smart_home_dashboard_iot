@@ -1,0 +1,432 @@
+{% extends "admin/base.html" %} {% block title %}Admin - User Management{%
+endblock %} {% block admin_content %}
+<div class="container-fluid">
+  <div class="card flex justify-content-center">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <h3>User Management</h3>
+      <button
+        class="btn btn-primary"
+        id="addUserBtn"
+        onclick="showAddUserModal()"
+      >
+        Add User
+      </button>
+    </div>
+    <div class="card-body">
+      <table class="table table-striped">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Username</th>
+            <th>Email</th>
+            <th>Name</th>
+            <th>Admin</th>
+            <th>Created</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for user in users %}
+          <tr>
+            <td>{{ user.id }}</td>
+            <td>{{ user.username }}</td>
+            <td>{{ user.email }}</td>
+            <td>{{ user.first_name }} {{ user.last_name }}</td>
+            <td>
+              {% if user.is_admin %}
+              <span class="badge badge-success">Yes</span>
+              {% else %}
+              <span class="badge badge-secondary">No</span>
+              {% endif %}
+            </td>
+            <td>{{ user.created_at.strftime('%Y-%m-%d') }}</td>
+            <td>
+              <button
+                class="btn btn-sm btn-info edit-user"
+                data-id="{{ user.id }}"
+                onclick="editUser('{{ user.id }}')"
+              >
+                Edit
+              </button>
+              <button
+                class="btn btn-sm btn-danger delete-user"
+                data-id="{{ user.id }}"
+              >
+                Delete
+              </button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- User Modal -->
+<div
+  class="modal fade"
+  id="userModal"
+  tabindex="-1"
+  role="dialog"
+  aria-labelledby="userModalLabel"
+  aria-hidden="true"
+>
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="userModalLabel">Edit User</h5>
+        <button
+          type="button"
+          class="close"
+          data-dismiss="modal"
+          aria-label="Close"
+          onclick="$('#userModal').modal('hide');"
+        >
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="userForm">
+          <input type="hidden" id="userId" name="id" />
+          <div class="form-group">
+            <label for="username">Username</label>
+            <input
+              type="text"
+              class="form-control"
+              id="username"
+              name="username"
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label for="email">Email</label>
+            <input
+              type="email"
+              class="form-control"
+              id="email"
+              name="email"
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label for="firstName">First Name</label>
+            <input
+              type="text"
+              class="form-control"
+              id="firstName"
+              name="first_name"
+            />
+          </div>
+          <div class="form-group">
+            <label for="lastName">Last Name</label>
+            <input
+              type="text"
+              class="form-control"
+              id="lastName"
+              name="last_name"
+            />
+          </div>
+          <div class="form-group">
+            <div class="form-check">
+              <input
+                type="checkbox"
+                class="form-check-input"
+                id="isAdmin"
+                name="is_admin"
+              />
+              <label class="form-check-label" for="isAdmin"
+                >Administrator</label
+              >
+            </div>
+          </div>
+          <div class="form-group new-user-only">
+            <label for="password">Password</label>
+            <input
+              type="password"
+              class="form-control"
+              id="password"
+              name="password"
+            />
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button
+          type="button"
+          class="btn btn-secondary"
+          data-dismiss="modal"
+          onclick="$('#userModal').modal('hide');"
+        >
+          Close
+        </button>
+        <button type="button" class="btn btn-primary" id="saveUser">
+          Save changes
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Include common admin scripts -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/js/bootstrap.min.js"></script>
+<script src="/static/js/admin-common.js"></script>
+
+<!-- Fallback click handlers -->
+<script>
+  function showAddUserModal() {
+    console.log('Fallback add user function called');
+
+    // Reset the form completely
+    resetUserForm();
+
+    // Set modal title
+    document.getElementById('userModalLabel').textContent = 'Add New User';
+
+    // Show password field for new users
+    document
+      .querySelectorAll('.new-user-only')
+      .forEach((el) => (el.style.display = 'block'));
+
+    // Force modal to show
+    $('#userModal').modal('show');
+  }
+
+  function resetUserForm() {
+    // Reset form fields
+    document.getElementById('userForm').reset();
+
+    // Clear hidden ID field
+    document.getElementById('userId').value = '';
+
+    // Reset modal title to default
+    document.getElementById('userModalLabel').textContent = 'User';
+
+    // Hide password field by default
+    document
+      .querySelectorAll('.new-user-only')
+      .forEach((el) => (el.style.display = 'none'));
+
+    // Re-enable all form inputs
+    document
+      .querySelectorAll('#userForm input')
+      .forEach((input) => (input.disabled = false));
+
+    // Reset save button state
+    document.getElementById('saveUser').disabled = false;
+    document.getElementById('saveUser').textContent = 'Save changes';
+  }
+
+  function editUser(userId) {
+    console.log('Fallback edit user function called', userId);
+    document.getElementById('userModalLabel').textContent = 'Edit User';
+
+    // Reset the form and hide password field
+    resetUserForm();
+    document
+      .querySelectorAll('.new-user-only')
+      .forEach((el) => (el.style.display = 'none'));
+
+    // Fetch user data and populate form
+    $.getJSON(`/admin/api/User/${userId}`)
+      .done(function (data) {
+        console.log('User data:', data);
+        document.getElementById('userId').value = data.id;
+        document.getElementById('username').value = data.username;
+        document.getElementById('email').value = data.email;
+        document.getElementById('firstName').value = data.first_name;
+        document.getElementById('lastName').value = data.last_name;
+        document.getElementById('isAdmin').checked = data.is_admin;
+        $('#userModal').modal('show');
+      })
+      .fail(function (xhr) {
+        console.error('Failed to load user data:', xhr.responseText);
+        alert('Error loading user data. Check console for details.');
+      });
+  }
+</script>
+
+{% endblock %} {% block admin_scripts %}
+<script>
+  $(document).ready(function () {
+    // Debug code to check if jQuery and Bootstrap modal are working
+    console.log('jQuery version:', $.fn.jquery);
+    console.log('Bootstrap modal available:', typeof $.fn.modal);
+
+    // Add user button - using jQuery event alongside the fallback
+    $('#addUserBtn').on('click', function () {
+      showAddUserModal();
+    });
+
+    // Edit user buttons - using jQuery event alongside the fallback
+    $('.edit-user').on('click', function () {
+      const userId = $(this).data('id');
+      editUser(userId);
+    });
+
+    // Modal initialization
+    $('#userModal').modal({
+      backdrop: true,
+      keyboard: true,
+      show: false,
+    });
+
+    // Reset form when modal is hidden (works for all close methods)
+    $('#userModal').on('hidden.bs.modal', function () {
+      console.log('Modal hidden - resetting form');
+      resetUserForm();
+    });
+
+    // Handle modal close buttons explicitly
+    $('.modal .btn-secondary[data-dismiss="modal"], .modal .close').click(
+      function () {
+        console.log('Close button clicked');
+        $('#userModal').modal('hide');
+      }
+    );
+
+    // Delete user
+    $('.delete-user').click(function () {
+      if (confirm('Are you sure you want to delete this user?')) {
+        const userId = $(this).data('id');
+        const row = $(this).closest('tr');
+
+        // Disable button during deletion
+        $(this).prop('disabled', true).text('Deleting...');
+
+        $.ajax({
+          url: `/admin/api/User/${userId}`,
+          method: 'DELETE',
+          success: function () {
+            // Remove row from table without reloading
+            row.fadeOut(400, function () {
+              row.remove();
+              showAlert('User deleted successfully', 'success');
+            });
+          },
+          error: function (xhr) {
+            handleAjaxError(xhr);
+            $(this).prop('disabled', false).text('Delete');
+          },
+        });
+      }
+    });
+
+    // Save user
+    $('#saveUser').click(function () {
+      // Form validation
+      if (!$('#username').val() || !$('#email').val()) {
+        alert('Please fill out all required fields');
+        return;
+      }
+
+      // For new users, require password
+      if (!$('#userId').val() && !$('#password').val()) {
+        alert('Password is required for new users');
+        return;
+      }
+
+      const userData = {
+        username: $('#username').val(),
+        email: $('#email').val(),
+        first_name: $('#firstName').val(),
+        last_name: $('#lastName').val(),
+        is_admin: $('#isAdmin').is(':checked'),
+      };
+
+      const userId = $('#userId').val();
+      let method, url;
+
+      if (userId) {
+        // Update existing user
+        method = 'PUT';
+        url = `/admin/api/User/${userId}`;
+        // Only include password if it's provided for existing users
+        if ($('#password').val()) {
+          userData.password = $('#password').val();
+        }
+      } else {
+        // Create new user
+        method = 'POST';
+        url = '/admin/api/User';
+        userData.password = $('#password').val();
+      }
+
+      console.log('Sending data to URL:', url);
+
+      // Disable save button during submission
+      $('#saveUser').prop('disabled', true).text('Saving...');
+
+      $.ajax({
+        url: url,
+        method: method,
+        contentType: 'application/json',
+        data: JSON.stringify(userData),
+        success: function (response) {
+          console.log('Success response:', response);
+          $('#userModal').modal('hide');
+          showAlert('User saved successfully', 'success');
+          location.reload(); // Reload the page to show updated data
+        },
+        error: function (xhr) {
+          handleAjaxError(xhr);
+          $('#saveUser').prop('disabled', false).text('Save changes');
+        },
+        complete: function () {
+          // Re-enable save button
+          $('#saveUser').prop('disabled', false).text('Save changes');
+        },
+      });
+    });
+  });
+
+  // Add a function to handle showing alerts if not already defined
+  function showAlert(message, type) {
+    if (typeof showToast === 'function') {
+      showToast(message, type);
+      return;
+    }
+
+    // Fallback alert mechanism
+    const alertDiv = $(
+      '<div class="alert alert-' +
+        type +
+        ' alert-dismissible fade show" role="alert">'
+    )
+      .text(message)
+      .append(
+        '<button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>'
+      );
+
+    // Add the alert to the top of the page
+    $('.container-fluid').first().prepend(alertDiv);
+
+    // Auto dismiss after 3 seconds
+    setTimeout(function () {
+      alertDiv.alert('close');
+    }, 3000);
+  }
+
+  // Add error handling function if not already defined
+  function handleAjaxError(xhr) {
+    let errorMsg = 'An error occurred';
+
+    try {
+      if (xhr.responseJSON && xhr.responseJSON.error) {
+        errorMsg = xhr.responseJSON.error;
+      } else if (xhr.responseText) {
+        const resp = JSON.parse(xhr.responseText);
+        errorMsg = resp.error || xhr.statusText || errorMsg;
+      } else {
+        errorMsg = xhr.statusText || errorMsg;
+      }
+    } catch (e) {
+      console.error('Error parsing error response:', e);
+    }
+
+    showAlert('Error: ' + errorMsg, 'danger');
+  }
+</script>
+{% endblock %}

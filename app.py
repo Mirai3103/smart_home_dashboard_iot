@@ -37,9 +37,41 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 login_manager.login_message_category = 'info'
 
+# Register admin blueprint
+from admin import admin as admin_blueprint
+app.register_blueprint(admin_blueprint)
+
+# Add custom Jinja2 filters
+@app.template_filter('flatten')
+def flatten_filter(items):
+    """Flatten a list of lists."""
+    flattened = []
+    for item in items:
+        if isinstance(item, list):
+            flattened.extend(flatten_filter(item))
+        else:
+            flattened.append(item)
+    return flattened
+
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, int(user_id))
+
+# Admin required decorator (for routes defined directly in app.py)
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated:
+            return redirect(url_for('login', next=request.url))
+        
+        if not current_user.is_admin:
+            flash('You do not have permission to access this page. Admin rights required.', 'danger')
+            return redirect(url_for('index'))
+        
+        logger.info(f"Admin access granted to {current_user.username}")
+        return f(*args, **kwargs)
+    return decorated_function
+
 # Import and initialize MQTT client
 from mqtt_client import MQTTClient
 mqtt_client = MQTTClient()
@@ -51,9 +83,6 @@ def init_app():
         db.create_all()
         logger.info("Database tables created successfully")
         mqtt_client.init_app(app, socketio)
-        # Add sample devices if none exist
-        if Device.query.count() == 0:
-            _add_sample_devices()
 
 # Disable caching for development
 @app.after_request
@@ -106,7 +135,13 @@ def index():
 def login():
     """Handle user login."""
     if current_user.is_authenticated:
-        return redirect(url_for('dashboard'))
+        if current_user.is_admin:
+            # Redirect admin users to admin dashboard - fixing path
+            return redirect(url_for('admin.dashboard'))
+        else:
+            # Redirect regular users to normal dashboard
+            return redirect(url_for('dashboard'))
+            
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
@@ -119,6 +154,15 @@ def login():
             user.access_token = generate_token()
             user.token_expiry = datetime.now(timezone.utc) + timedelta(days=7)  # Token valid for 7 days
             db.session.commit()
+            
+            # Debug logging to troubleshoot admin redirects
+            logger.info(f"User logged in: {user.username}, is_admin: {user.is_admin}")
+            
+            # Redirect based on user role
+            if user.is_admin:
+                logger.info("Admin user detected, redirecting to admin dashboard")
+                return redirect(url_for('admin.dashboard'))
+                
             next_page = request.args.get('next')
             if next_page and next_page.startswith('/'):
                 return redirect(next_page)
@@ -176,37 +220,91 @@ def logout():
     return redirect(url_for('login'))
 
 @app.route('/dashboard')
+@app.route('/dashboard/<int:home_id>')
 @login_required
-def dashboard():
+def dashboard(home_id=None):
     """Render the dashboard page."""
     with app.app_context():
-        # Query devices with their relationships
-        devices_query = (db.session.query(Device, Room, Floor)
-                        .join(Room, Device.room_id == Room.id)
-                        .join(Floor, Room.floor_id == Floor.id)
-                        .filter(Device.is_active == True)
-                        .all())
-        # Format device data for the template
-        devices_data = []
-        for device, room, floor in devices_query:
-            # Get the latest sensor data if applicable
-            latest_data = None
-            if device.type in ['temperature', 'humidity', 'light']:
-                latest_data = SensorData.query.filter_by(device_id=device.id).order_by(SensorData.timestamp.desc()).first()
-            device_info = device.to_dict()
-            device_info.update({
-                'location': room.name.lower().replace(' ', '_'),
-                'room_name': room.name,
-                'floor': floor.floor_number,
-                'floor_name': floor.name,
-                'last_seen': device.last_seen,
-                'latest_value': latest_data.value if latest_data else None,
-                'latest_timestamp': latest_data.timestamp if latest_data else None
-            })
-            devices_data.append(device_info)
-        # Get floor statistics
-        floors = Floor.query.order_by(Floor.floor_number).all()
-        return render_template('dashboard.html', devices=devices_data, floors=floors)
+        # Get homes that the user has access to
+        if current_user.is_admin:
+            homes = Home.query.all()
+        else:
+            homes = Home.query.filter(
+                (Home.owner_id == current_user.id) | 
+                (Home.id.in_([access.home_id for access in current_user.home_accesses]))
+            ).all()
+        
+        # Prepare hierarchical data: Home -> Floor -> Room -> Device
+        homes_data = []
+        current_home = None
+        
+        for home in homes:
+            floors_data = []
+            for floor in home.floors:
+                rooms_data = []
+                for room in floor.rooms:
+                    devices_data = []
+                    for device in room.devices:
+                        # Get the latest sensor data if applicable
+                        latest_data = None
+                        if device.type in ['temperature', 'humidity', 'light']:
+                            latest_data = SensorData.query.filter_by(device_id=device.device_id).order_by(SensorData.timestamp.desc()).first()
+                        device_info = device.to_dict()
+                        device_info.update({
+                            'latest_value': latest_data.value if latest_data else None,
+                            'latest_timestamp': latest_data.timestamp if latest_data else None
+                        })
+                        devices_data.append(device_info)
+                    rooms_data.append({
+                        'id': room.id,
+                        'name': room.name,
+                        'room_type': room.room_type,
+                        'devices': devices_data
+                    })
+                floors_data.append({
+                    'id': floor.id,
+                    'floor_number': floor.floor_number,
+                    'name': floor.name,
+                    'rooms': rooms_data
+                })
+            home_data = {
+                'id': home.id,
+                'name': home.name,
+                'address': home.address,
+                'owner_id': home.owner_id,
+                'floors': floors_data
+            }
+            homes_data.append(home_data)
+            
+            # Set as current home if it matches the requested home_id
+            if home_id and home.id == home_id:
+                current_home = home_data
+        
+        # If no home_id specified but user has homes, use the first home
+        if not current_home and homes_data:
+            # If user is not admin, use their own home
+            if not current_user.is_admin:
+                # Try to find home owned by user first
+                for home in homes_data:
+                    if home['owner_id'] == current_user.id:
+                        current_home = home
+                        break
+            
+            # If still no current_home (admin or no owned home found), use first available
+            if not current_home:
+                current_home = homes_data[0]
+        
+        # Extract devices list for backward compatibility with existing template
+        all_devices = []
+        if current_home:
+            for floor in current_home['floors']:
+                for room in floor['rooms']:
+                    all_devices.extend(room['devices'])
+        
+        return render_template('dashboard.html', 
+                              homes=homes_data, 
+                              current_home=current_home,
+                              devices=all_devices)
 
 @app.route('/devices')
 @login_required
@@ -472,7 +570,7 @@ def api_get_device_data(user, device_id):
             }), 403
         # Get sensor data for the specified time range
         since = datetime.utcnow() - timedelta(days=days)
-        data = SensorData.query.filter_by(device_id=device.id)\
+        data = SensorData.query.filter_by(device_id=device.device_id)\
             .filter(SensorData.timestamp >= since)\
             .order_by(SensorData.timestamp.desc())\
             .limit(limit).all()
@@ -543,7 +641,7 @@ def api_get_sensor_data(sensor_type):
             logger.info(f"Mapped request {device_id} to device {device.device_id}")
         # Get sensor data for the specified time range
         since = datetime.utcnow() - timedelta(days=days)
-        data = SensorData.query.filter_by(device_id=device.id)\
+        data = SensorData.query.filter_by(device_id=device.device_id)\
             .filter(SensorData.timestamp >= since)\
             .order_by(SensorData.timestamp.desc())\
             .limit(limit).all()
@@ -582,7 +680,7 @@ def api_control_device(user, device_id):
         value = data.get('value')
         # Record user action
         user_action_data = {
-            'device_id': device.id,
+            'device_id': device.device_id,  # Changed from device.id to device.device_id
             'action': action,
             'value': str(value) if value is not None else None,
             'user_id': user.id
@@ -834,166 +932,6 @@ def handle_ping():
     """Handle ping from client (custom heartbeat)."""
     socketio.emit('pong')
     return True
-
-def _add_sample_devices():
-    """Add sample devices to the database."""
-    # First check if we have any users
-    admin_user = User.query.filter_by(is_admin=True).first()
-    if not admin_user:
-        # Create an admin user
-        admin = User(
-            username="admin",
-            email="admin@example.com",
-            first_name="Admin",
-            last_name="User",
-            is_admin=True
-        )
-        admin.set_password("admin123")  # You should change this in production
-        db.session.add(admin)
-        db.session.commit()
-        admin_user = admin
-    
-    # Create a sample home if none exists
-    home = Home.query.first()
-    if not home:
-        home = Home(
-            name="My Smart Home",
-            address="123 Smart St, Tech City",
-            owner_id=admin_user.id
-        )
-        db.session.add(home)
-        db.session.commit()
-    
-    # Add floors if they don't exist
-    floor_names = {
-        1: "Ground Floor",
-        2: "First Floor",
-        3: "Second Floor"
-    }
-    
-    floors = {}
-    for floor_num, floor_name in floor_names.items():
-        floor = Floor.query.filter_by(home_id=home.id, floor_number=floor_num).first()
-        if not floor:
-            floor = Floor(
-                home_id=home.id,
-                floor_number=floor_num,
-                name=floor_name
-            )
-            db.session.add(floor)
-            db.session.commit()
-        floors[floor_num] = floor
-    
-    # Define room types for each floor
-    room_types = {
-        1: [  # Ground Floor
-            {"name": "Living Room", "type": "living"},
-            {"name": "Kitchen", "type": "kitchen"},
-            {"name": "Dining Room", "type": "dining"},
-            {"name": "Office", "type": "office"}
-        ],
-        2: [  # First Floor
-            {"name": "Master Bedroom", "type": "bedroom"},
-            {"name": "Guest Bedroom", "type": "bedroom"},
-            {"name": "Bathroom", "type": "bathroom"},
-            {"name": "Hallway", "type": "hallway"}
-        ],
-        3: [  # Second Floor
-            {"name": "Game Room", "type": "entertainment"},
-            {"name": "Gym", "type": "fitness"},
-            {"name": "Home Theater", "type": "entertainment"}
-        ]
-    }
-    
-    # Create rooms for each floor
-    rooms = {}
-    for floor_num, room_list in room_types.items():
-        floor = floors[floor_num]
-        floor_rooms = []
-        for room_data in room_list:
-            room = Room.query.filter_by(
-                floor_id=floor.id, 
-                name=room_data["name"]
-            ).first()
-            if not room:
-                room = Room(
-                    floor_id=floor.id,
-                    name=room_data["name"],
-                    room_type=room_data["type"]
-                )
-                db.session.add(room)
-                db.session.commit()
-            floor_rooms.append(room)
-        rooms[floor_num] = floor_rooms
-    
-    # Now we can create sample devices in each room
-    sample_device_types = {
-        "living": ["temperature", "humidity", "light"],
-        "kitchen": ["temperature", "humidity", "light"],
-        "dining": ["light"],
-        "office": ["temperature", "light"],
-        "bedroom": ["temperature", "humidity", "light"],
-        "bathroom": ["humidity", "light"],
-        "hallway": ["light"],
-        "entertainment": ["temperature", "light"],
-        "fitness": ["temperature", "humidity", "light"]
-    }
-    
-    for floor_num, floor_rooms in rooms.items():
-        for room in floor_rooms:
-            # Get device types for this room type
-            device_types = sample_device_types.get(room.room_type, ["light"])
-            for device_type in device_types:
-                device_id = f"{device_type}_{room.name.lower().replace(' ', '_')}_f{floor_num}"
-                # For Living Room on Floor 1, add special compatibility with frontend
-                if room.name == "Living Room" and floor_num == 1:
-                    if device_type == "temperature":
-                        # Make sure both device IDs work
-                        device_ids = [device_id]
-                        alt_id = f"temp_{room.name.lower().replace(' ', '_')}_f{floor_num}"
-                        # Check if alt ID already exists
-                        if not Device.query.filter_by(device_id=alt_id).first():
-                            device_ids.append(alt_id)
-                    else:
-                        device_ids = [device_id]
-                else:
-                    device_ids = [device_id]
-                
-                for current_id in device_ids:
-                    # Check if device already exists
-                    device = Device.query.filter_by(device_id=current_id).first()
-                    if not device:
-                        device = Device(
-                            device_id=current_id,
-                            name=f"{room.name} {device_type.capitalize()}",
-                            type=device_type,
-                            room_id=room.id,
-                            status='offline'
-                        )
-                        db.session.add(device)
-                
-                # Add some sample sensor data for testing
-                if device_type in ["temperature", "humidity"]:
-                    main_device = Device.query.filter_by(device_id=device_id).first()
-                    if main_device and SensorData.query.filter_by(device_id=main_device.id).count() == 0:
-                        # Add 24 hours of sample data
-                        now = datetime.utcnow()
-                        for i in range(24):
-                            timestamp = now - timedelta(hours=i)
-                            if device_type == "temperature":
-                                # Random temperature between 18 and 25
-                                value = 18 + (i % 7) + round(random.random(), 1)
-                            else:  # humidity
-                                # Random humidity between 30 and 65
-                                value = 30 + (i % 35) + round(random.random(), 1)
-                            data = SensorData(
-                                device_id=main_device.id,
-                                value=value,
-                                timestamp=timestamp
-                            )
-                            db.session.add(data)
-    db.session.commit()
-    logger.info("Sample devices and data added successfully")
 
 # Add the missing import at the top of the file
 import random

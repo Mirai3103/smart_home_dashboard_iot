@@ -72,7 +72,8 @@ def create_users(count=10):
             created_at=fake.date_time_between(start_date='-1y', end_date='now'),
             last_login=fake.date_time_between(start_date='-1m', end_date='now')
         )
-        user.set_password(fake.password(length=10))
+        # user.set_password(fake.password(length=10))
+        user.set_password("password123")
         users.append(user)
     
     db.session.add_all(users)
@@ -278,7 +279,7 @@ def create_sensor_data(devices, days=30):
                     value = random.uniform(min_val, max_val)
                 
                 data = SensorData(
-                    device_id=device.id,
+                    device_id=device.device_id,  # Changed to use device_id instead of id
                     value=round(value, 2),
                     unit=unit,
                     timestamp=timestamp
@@ -341,7 +342,7 @@ def create_user_actions(users, devices, count=200):
                                          minutes=random.randint(0, 59))
         
         user_action = UserAction(
-            device_id=device.id,
+            device_id=device.device_id,  # Changed to use device_id instead of id
             action=action,
             value=value,
             timestamp=timestamp,

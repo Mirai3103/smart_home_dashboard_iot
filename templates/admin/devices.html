@@ -1,0 +1,551 @@
+{% extends "base.html" %} {% block title %}Admin - Device Management{% endblock
+%} {% block content %}
+<div class="container-fluid">
+      <div class="card flex justify-content-center">
+        <div
+          class="card-header d-flex justify-content-between align-items-center"
+        >
+          <h3>Device Management</h3>
+          <button class="btn btn-primary" id="addDeviceBtn" onclick="showAddDeviceModal()">Add Device</button>
+        </div>
+        <div class="card-body">
+          <div class="mb-3">
+            <input
+              type="text"
+              class="form-control"
+              id="deviceSearch"
+              placeholder="Search devices..."
+            />
+          </div>
+          <table class="table table-striped">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Device ID</th>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Room</th>
+                <th>Status</th>
+                <th>Last Seen</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for device in devices %}
+              <tr>
+                <td>{{ device.id }}</td>
+                <td>{{ device.device_id }}</td>
+                <td>{{ device.name }}</td>
+                <td>{{ device.type }}</td>
+                <td>
+                  {% if device.room %} {{ device.room.name }} ({{
+                  device.room.floor.name if device.room.floor.name else 'Floor '
+                  + device.room.floor.floor_number|string }}) {% endif %}
+                </td>
+                <td>
+                  {% if device.status == 'online' %}
+                  <span class="badge badge-success">{{ device.status }}</span>
+                  {% elif device.status == 'offline' %}
+                  <span class="badge badge-secondary">{{ device.status }}</span>
+                  {% else %}
+                  <span class="badge badge-warning">{{ device.status }}</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {{ device.last_seen.strftime('%Y-%m-%d %H:%M') if
+                  device.last_seen else 'Never' }}
+                </td>
+                <td>
+                  <button
+                    class="btn btn-sm btn-info edit-device"
+                    data-id="{{ device.id }}"
+                    onclick="editDevice('{{ device.id }}')"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    class="btn btn-sm btn-danger delete-device"
+                    data-id="{{ device.id }}"
+                  >
+                    Delete
+                  </button>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Device Modal -->
+<div
+  class="modal fade"
+  id="deviceModal"
+  tabindex="-1"
+  role="dialog"
+  aria-labelledby="deviceModalLabel"
+  aria-hidden="true"
+>
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="deviceModalLabel">Edit Device</h5>
+        <button
+          type="button"
+          class="close"
+          data-dismiss="modal"
+          aria-label="Close"
+        >
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="deviceForm">
+          <input type="hidden" id="deviceId" name="id" />
+          <div class="form-group">
+            <label for="deviceUniqueId">Device ID</label>
+            <input
+              type="text"
+              class="form-control"
+              id="deviceUniqueId"
+              name="device_id"
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label for="deviceName">Name</label>
+            <input
+              type="text"
+              class="form-control"
+              id="deviceName"
+              name="name"
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label for="deviceType">Type</label>
+            <select class="form-control" id="deviceType" name="type">
+              <option value="temperature">Temperature Sensor</option>
+              <option value="humidity">Humidity Sensor</option>
+              <option value="light">Light Sensor</option>
+              <option value="motion">Motion Sensor</option>
+              <option value="switch">Switch</option>
+              <option value="bulb">Light Bulb</option>
+              <option value="fan">Fan</option>
+              <option value="thermostat">Thermostat</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="homeSelect">Home</label>
+            <select class="form-control" id="homeSelect">
+              <option value="">Select Home...</option>
+              {% for home in homes %}
+              <option value="{{ home.id }}">{{ home.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="floorSelect">Floor</label>
+            <select class="form-control" id="floorSelect" disabled>
+              <option value="">Select Floor...</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="roomId">Room</label>
+            <select
+              class="form-control"
+              id="roomId"
+              name="room_id"
+              required
+              disabled
+            >
+              <option value="">Select Room...</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="deviceStatus">Status</label>
+            <select class="form-control" id="deviceStatus" name="status">
+              <option value="online">Online</option>
+              <option value="offline">Offline</option>
+              <option value="error">Error</option>
+            </select>
+          </div>
+          <div class="form-check">
+            <input
+              type="checkbox"
+              class="form-check-input"
+              id="isActive"
+              name="is_active"
+              checked
+            />
+            <label class="form-check-label" for="isActive">Active</label>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">
+          Close
+        </button>
+        <button type="button" class="btn btn-primary" id="saveDevice">
+          Save changes
+        </button>
+      </div>
+    </div>
+</div>
+
+<!-- Device Data Modal -->
+<div
+  class="modal fade"
+  id="dataModal"
+  tabindex="-1"
+  role="dialog"
+  aria-labelledby="dataModalLabel"
+  aria-hidden="true"
+>
+  <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="dataModalLabel">Device Data</h5>
+        <button
+          type="button"
+          class="close"
+          data-dismiss="modal"
+          aria-label="Close"
+        >
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="sensor-data-container">
+          <div id="dataChart" style="height: 300px"></div>
+          <table class="table table-sm table-striped mt-3">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Value</th>
+                <th>Unit</th>
+              </tr>
+            </thead>
+            <tbody id="dataTable">
+              <tr>
+                <td colspan="3" class="text-center">Loading data...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+  </div>
+</div>
+
+{% block scripts %}
+<!-- Make sure jQuery is properly loaded first -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/js/bootstrap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="/static/js/admin-common.js"></script>
+
+<!-- Fallback click handlers -->
+<script>
+  function showAddDeviceModal() {
+    console.log("Fallback add device function called");
+    document.getElementById('deviceModalLabel').textContent = 'Add New Device';
+    document.getElementById('deviceForm').reset();
+    document.getElementById('deviceId').value = '';
+    document.getElementById('deviceUniqueId').disabled = false;
+    document.getElementById('homeSelect').value = '';
+    document.getElementById('floorSelect').disabled = true;
+    document.getElementById('roomId').disabled = true;
+    $('#deviceModal').modal('show');
+  }
+  
+  function editDevice(deviceId) {
+    console.log("Fallback edit device function called", deviceId);
+    document.getElementById('deviceModalLabel').textContent = 'Edit Device';
+    
+    // Show loading
+    document.getElementById('saveDevice').disabled = true;
+    document.getElementById('saveDevice').textContent = 'Loading...';
+    
+    // Fetch device data and populate form
+    $.getJSON(`/admin/api/Device/${deviceId}`)
+      .done(function (data) {
+        console.log('Device data:', data);
+        document.getElementById('deviceId').value = data.id;
+        document.getElementById('deviceUniqueId').value = data.device_id;
+        document.getElementById('deviceUniqueId').disabled = true;
+        document.getElementById('deviceName').value = data.name;
+        document.getElementById('deviceType').value = data.type;
+        document.getElementById('deviceStatus').value = data.status;
+        document.getElementById('isActive').checked = data.is_active;
+        
+        // Get room, floor and home data
+        $.getJSON(`/admin/api/Room/${data.room_id}`)
+          .done(function(room) {
+            $.getJSON(`/admin/api/Floor/${room.floor_id}`)
+              .done(function(floor) {
+                $.getJSON(`/admin/api/Home/${floor.home_id}`)
+                  .done(function(home) {
+                    $('#homeSelect').val(home.id);
+                    
+                    // Load floors
+                    $.getJSON(`/api/floors?home_id=${home.id}`, function(response) {
+                      if (response.success) {
+                        let floorOptions = '<option value="">Select Floor...</option>';
+                        response.floors.forEach((f) => {
+                          floorOptions += `<option value="${f.id}">${f.name || 'Floor ' + f.floor_number}</option>`;
+                        });
+                        
+                        $('#floorSelect').html(floorOptions);
+                        $('#floorSelect').prop('disabled', false);
+                        $('#floorSelect').val(floor.id);
+                        
+                        // Load rooms
+                        const selectedFloor = response.floors.find(f => f.id === floor.id);
+                        if (selectedFloor && selectedFloor.rooms) {
+                          let roomOptions = '<option value="">Select Room...</option>';
+                          selectedFloor.rooms.forEach((r) => {
+                            roomOptions += `<option value="${r.id}">${r.name}</option>`;
+                          });
+                          
+                          $('#roomId').html(roomOptions);
+                          $('#roomId').prop('disabled', false);
+                          $('#roomId').val(room.id);
+                        }
+                      }
+                      
+                      // Enable save button
+                      document.getElementById('saveDevice').disabled = false;
+                      document.getElementById('saveDevice').textContent = 'Save changes';
+                    });
+                  })
+                  .fail(function() {
+                    alert('Failed to load home data');
+                    document.getElementById('saveDevice').disabled = false;
+                    document.getElementById('saveDevice').textContent = 'Save changes';
+                  });
+              })
+              .fail(function() {
+                alert('Failed to load floor data');
+                document.getElementById('saveDevice').disabled = false;
+                document.getElementById('saveDevice').textContent = 'Save changes';
+              });
+          })
+          .fail(function() {
+            alert('Failed to load room data');
+            document.getElementById('saveDevice').disabled = false;
+            document.getElementById('saveDevice').textContent = 'Save changes';
+          });
+      })
+      .fail(function(xhr) {
+        alert('Error: ' + (xhr.responseJSON?.error || xhr.statusText || 'Unknown error'));
+        document.getElementById('saveDevice').disabled = false;
+        document.getElementById('saveDevice').textContent = 'Save changes';
+      });
+    
+    $('#deviceModal').modal('show');
+  }
+</script>
+
+<!-- Main application script -->
+<script>
+  $(document).ready(function () {
+    let chartInstance = null;
+    let homes = [];
+    let floors = {};
+    let rooms = {};
+
+    // Load homes data for select dropdown
+    $.getJSON('/api/homes', function (response) {
+      if (response.success) {
+        homes = response.homes;
+        let homeOptions = '<option value="">Select Home...</option>';
+        homes.forEach((home) => {
+          homeOptions += `<option value="${home.id}">${home.name}</option>`;
+        });
+        $('#homeSelect').html(homeOptions);
+      }
+    });
+
+    // Home select change
+    $('#homeSelect').change(function () {
+      const homeId = $(this).val();
+      $('#floorSelect').html('<option value="">Select Floor...</option>');
+      $('#roomId').html('<option value="">Select Room...</option>');
+      $('#floorSelect').prop('disabled', !homeId);
+      $('#roomId').prop('disabled', true);
+
+      if (homeId) {
+        // Load floors for selected home
+        $.getJSON(`/api/floors?home_id=${homeId}`, function (response) {
+          if (response.success) {
+            let floorOptions = '<option value="">Select Floor...</option>';
+            floors[homeId] = response.floors;
+
+            response.floors.forEach((floor) => {
+              floorOptions += `<option value="${floor.id}">${
+                floor.name || 'Floor ' + floor.floor_number
+              }</option>`;
+            });
+
+            $('#floorSelect').html(floorOptions);
+          }
+        });
+      }
+    });
+
+    // Floor select change
+    $('#floorSelect').change(function () {
+      const floorId = $(this).val();
+      $('#roomId').html('<option value="">Select Room...</option>');
+      $('#roomId').prop('disabled', !floorId);
+
+      if (floorId) {
+        const homeId = $('#homeSelect').val();
+        const floor = floors[homeId].find((f) => f.id == floorId);
+
+        if (floor && floor.rooms) {
+          let roomOptions = '<option value="">Select Room...</option>';
+          rooms[floorId] = floor.rooms;
+
+          floor.rooms.forEach((room) => {
+            roomOptions += `<option value="${room.id}">${room.name}</option>`;
+          });
+
+          $('#roomId').html(roomOptions);
+        }
+      }
+    });
+
+    // Search filter
+    $('#deviceSearch').on('keyup', function () {
+      const value = $(this).val().toLowerCase();
+      $('table tbody tr').filter(function () {
+        $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1);
+      });
+    });
+
+    // Add device button - using jQuery event alongside the fallback
+    $('#addDeviceBtn').on('click', function() {
+      showAddDeviceModal();
+    });
+
+    // Edit device - using jQuery event alongside the fallback
+    $('.edit-device').on('click', function() {
+      const deviceId = $(this).data('id');
+      editDevice(deviceId);
+    });
+
+    // Delete device
+    $('.delete-device').on('click', function () {
+      if (confirm('Are you sure you want to delete this device?')) {
+        const deviceId = $(this).data('id');
+        const row = $(this).closest('tr');
+
+        // Disable button while deleting
+        $(this).prop('disabled', true).text('Deleting...');
+
+        $.ajax({
+          url: `/admin/api/Device/${deviceId}`,
+          method: 'DELETE',
+          success: function () {
+            // Remove row from table without reloading
+            row.fadeOut(400, function () {
+              row.remove();
+              showAlert('Device deleted successfully', 'success');
+            });
+          },
+          error: function (xhr) {
+            handleAjaxError(xhr);
+            $(this).prop('disabled', false).text('Delete');
+          },
+        });
+      }
+    });
+
+    // Save device changes
+    $('#saveDevice').click(function () {
+      // Validate form
+      if (
+        !$('#deviceName').val() ||
+        !$('#deviceUniqueId').val() ||
+        !$('#roomId').val()
+      ) {
+        alert('Please fill out all required fields');
+        return;
+      }
+
+      const deviceData = {
+        device_id: $('#deviceUniqueId').val(),
+        name: $('#deviceName').val(),
+        type: $('#deviceType').val(),
+        room_id: parseInt($('#roomId').val()),
+        status: $('#deviceStatus').val(),
+        is_active: $('#isActive').is(':checked'),
+      };
+
+      const deviceId = $('#deviceId').val();
+      let method, url;
+
+      if (deviceId) {
+        // Update existing device
+        method = 'PUT';
+        url = `/admin/api/Device/${deviceId}`;
+        // Remove device_id from update data
+        delete deviceData.device_id;
+      } else {
+        // Create new device
+        method = 'POST';
+        url = '/admin/api/Device';
+      }
+
+      // Disable button during submission
+      $('#saveDevice').prop('disabled', true).text('Saving...');
+
+      console.log('Saving device data:', deviceData);
+
+      $.ajax({
+        url: url,
+        method: method,
+        contentType: 'application/json',
+        data: JSON.stringify(deviceData),
+        success: function (response) {
+          console.log('Device saved successfully:', response);
+          $('#deviceModal').modal('hide');
+          alert('Device saved successfully');
+          location.reload();
+        },
+        error: function (xhr) {
+          console.error('Error saving device:', xhr.responseText);
+          let errorMsg = 'Unknown error occurred';
+          try {
+            if (xhr.responseJSON && xhr.responseJSON.error) {
+              errorMsg = xhr.responseJSON.error;
+            } else {
+              errorMsg = xhr.statusText || errorMsg;
+            }
+          } catch (e) {
+            console.error('Error parsing error response:', e);
+          }
+          alert('Error: ' + errorMsg);
+        },
+        complete: function () {
+          $('#saveDevice').prop('disabled', false).text('Save changes');
+        },
+      });
+    });
+
+    // Handle modal close button
+    $('.modal .btn-secondary[data-dismiss="modal"]').click(function() {
+      $(this).closest('.modal').modal('hide');
+    });
+
+    $('.modal .close').click(function() {
+      $(this).closest('.modal').modal('hide');
+    });
+  });
+</script>
+{% endblock %} {% endblock %}

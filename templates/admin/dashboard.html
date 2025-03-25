@@ -1,0 +1,194 @@
+{% extends "base.html" %} {% block title %}Admin Dashboard{% endblock %} {%
+block content %}
+<div class="container-fluid">
+    <div class="card flex justify-content-center">
+      <div class="card-header">
+        <h3>Admin Dashboard</h3>
+      </div>
+      <div class="card-body">
+        <h4>Welcome to the Admin Dashboard</h4>
+        <p>From here, you can manage all aspects of the smart home system.</p>
+
+        <div class="row">
+          <div class="col-md-4">
+            <div class="card text-white bg-primary mb-3">
+              <div class="card-header">Users</div>
+              <div class="card-body">
+                <h5 class="card-title">Manage Users</h5>
+                <p class="card-text">Add, edit, or delete user accounts</p>
+                <a href="{{ url_for('admin.users') }}" class="btn btn-light"
+                  >Go to Users</a
+                >
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card text-white bg-success mb-3">
+              <div class="card-header">Homes</div>
+              <div class="card-body">
+                <h5 class="card-title">Manage Homes</h5>
+                <p class="card-text">Configure homes, floors, and rooms</p>
+                <a href="{{ url_for('admin.homes') }}" class="btn btn-light"
+                  >Go to Homes</a
+                >
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card text-white bg-info mb-3">
+              <div class="card-header">Devices</div>
+              <div class="card-body">
+                <h5 class="card-title">Manage Devices</h5>
+                <p class="card-text">Monitor and control all devices</p>
+                <a href="{{ url_for('admin.devices') }}" class="btn btn-light"
+                  >Go to Devices</a
+                >
+              </div>
+            </div>
+          </div>
+        </div>
+
+        
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Models Dialog -->
+<div
+  class="modal fade"
+  id="modelsModal"
+  tabindex="-1"
+  role="dialog"
+  aria-labelledby="modelsModalLabel"
+  aria-hidden="true"
+>
+  <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modelsModalLabel">
+          Select Model to Manage
+        </h5>
+        <button
+          type="button"
+          class="close"
+          data-dismiss="modal"
+          aria-label="Close"
+        >
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="list-group">
+          <a
+            href="#"
+            class="list-group-item list-group-item-action"
+            data-model="User"
+            >Users</a
+          >
+          <a
+            href="#"
+            class="list-group-item list-group-item-action"
+            data-model="UserRole"
+            >User Roles</a
+          >
+          <a
+            href="#"
+            class="list-group-item list-group-item-action"
+            data-model="Home"
+            >Homes</a
+          >
+          <a
+            href="#"
+            class="list-group-item list-group-item-action"
+            data-model="Floor"
+            >Floors</a
+          >
+          <a
+            href="#"
+            class="list-group-item list-group-item-action"
+            data-model="Room"
+            >Rooms</a
+          >
+          <a
+            href="#"
+            class="list-group-item list-group-item-action"
+            data-model="Device"
+            >Devices</a
+          >
+          <a
+            href="#"
+            class="list-group-item list-group-item-action"
+            data-model="SensorData"
+            >Sensor Data</a
+          >
+          <a
+            href="#"
+            class="list-group-item list-group-item-action"
+            data-model="UserAction"
+            >User Actions</a
+          >
+          <a
+            href="#"
+            class="list-group-item list-group-item-action"
+            data-model="HomeAccess"
+            >Home Access</a
+          >
+        </div>
+      </div>
+    </div>
+</div>
+
+{% block scripts %}
+<script>
+  $(document).ready(function () {
+    $('#showModels').click(function (e) {
+      e.preventDefault();
+      $('#modelsModal').modal('show');
+    });
+
+    $('.list-group-item').click(function (e) {
+      e.preventDefault();
+      const model = $(this).data('model');
+      // Redirect to a generic model editor or create specific views
+      window.location.href = `/admin/model/${model}`;
+    });
+
+    // Check API status
+    $('#checkApiBtn').click(function () {
+      $(this).prop('disabled', true).text('Checking...');
+
+      $.getJSON('/admin/api/debug-info')
+        .done(function (data) {
+          let html = '<h5 class="text-success">API is working</h5>';
+
+          html += '<h6>Models:</h6><ul>';
+          data.models.forEach((model) => {
+            if (model.error) {
+              html += `<li>${model.name} (${model.table}): <span class="text-danger">${model.error}</span></li>`;
+            } else {
+              html += `<li>${model.name} (${model.table}): ${model.count} records</li>`;
+            }
+          });
+          html += '</ul>';
+
+          html += `<p>Current user: ${data.user_info.username} (${
+            data.user_info.is_admin ? 'Admin' : 'Not Admin'
+          })</p>`;
+
+          $('#system-status').html(html);
+        })
+        .fail(function (xhr) {
+          $('#system-status').html(
+            '<div class="alert alert-danger">API Error: ' +
+              (xhr.responseJSON ? xhr.responseJSON.error : xhr.statusText) +
+              '</div>'
+          );
+        })
+        .always(function () {
+          $('#checkApiBtn').prop('disabled', false).text('Check API Status');
+        });
+    });
+  });
+</script>
+{% endblock %} {% endblock %}

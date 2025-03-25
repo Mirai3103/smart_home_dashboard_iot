@@ -35,6 +35,12 @@
       href="{{ url_for('static', filename='css/main.css') }}"
     />
 
+    <style>
+      /* Admin nav styling kept simple without the "Admin" label */
+      .admin-nav-item {
+        /* Base class kept for potential future styling needs */
+      }
+    </style>
     {% block custom_css %}{% endblock %}
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <script src="{{ url_for('static', filename='js/socket_events.js') }}"></script>
@@ -59,6 +65,42 @@
         </button>
         <div class="collapse navbar-collapse" id="navbarNav">
           <ul class="navbar-nav me-auto">
+            {% if current_user.is_authenticated and current_user.is_admin %}
+            <!-- Admin Navigation -->
+            <li class="nav-item admin-nav-item">
+              <a
+                class="nav-link {% if request.path == '/admin' %}active{% endif %}"
+                href="/admin"
+              >
+                <i class="fas fa-tachometer-alt"></i> Admin Dashboard
+              </a>
+            </li>
+            <li class="nav-item admin-nav-item">
+              <a
+                class="nav-link {% if '/admin/users' in request.path %}active{% endif %}"
+                href="/admin/users"
+              >
+                <i class="fas fa-users-cog"></i> Users
+              </a>
+            </li>
+            <li class="nav-item admin-nav-item">
+              <a
+                class="nav-link {% if '/admin/devices' in request.path %}active{% endif %}"
+                href="/admin/devices"
+              >
+                <i class="fas fa-cogs"></i> Manage Devices
+              </a>
+            </li>
+            <li class="nav-item admin-nav-item">
+              <a
+                class="nav-link {% if '/admin/homes' in request.path %}active{% endif %}"
+                href="/admin/homes"
+              >
+                <i class="fas fa-home"></i> Homes
+              </a>
+            </li>
+            {% else %}
+            <!-- User Navigation -->
             <li class="nav-item">
               <a
                 class="nav-link {% if request.path == '/' %}active{% endif %}"
@@ -91,6 +133,7 @@
                 <i class="fas fa-history"></i> History
               </a>
             </li>
+            {% endif %}
           </ul>
           <div class="d-flex align-items-center">
             <!-- Connection status indicator -->
@@ -130,7 +173,7 @@
                 <li><hr class="dropdown-divider" /></li>
                 {% if current_user.is_admin %}
                 <li>
-                  <a class="dropdown-item" href="#"
+                  <a class="dropdown-item" href="/admin"
                     ><i class="fas fa-users-cog me-2"></i>Admin Panel</a
                   >
                 </li>

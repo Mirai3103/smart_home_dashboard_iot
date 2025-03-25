@@ -485,12 +485,38 @@ function loadDeviceStatistics() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            updateDeviceStatistics(data.devices);
+            // Filter to only include user's devices
+            const userDevices = data.devices.filter(device => 
+                device.user_id === getCurrentUserId());
+            updateDeviceStatistics(userDevices);
         }
     })
     .catch(error => {
         console.error('Error loading device statistics:', error);
     });
+}
+
+// Helper function to get current user ID from page context
+function getCurrentUserId() {
+    // Try to get from a data attribute on the body or another element
+    // This would need to be added by the server when rendering
+    const userIdEl = document.getElementById('current-user-id') || 
+                    document.querySelector('[data-user-id]');
+    
+    if (userIdEl) {
+        return userIdEl.getAttribute('data-user-id') || 
+               userIdEl.value || 
+               userIdEl.textContent;
+    }
+    
+    // If there's no element with user ID, try to get from a global variable
+    // which could be set in the template
+    if (window.currentUserId !== undefined) {
+        return window.currentUserId;
+    }
+    
+    // Default to session storage as fallback
+    return sessionStorage.getItem('userId') || null;
 }
 
 function updateDeviceStatistics(devices) {
@@ -559,7 +585,7 @@ function initializeCharts() {
         const chartType = container.getAttribute('data-chart-type') || 'line';
         
         if (deviceId && container.id) {
-            // Load data for this device
+            // Load data for this device only if it belongs to the user
             loadDeviceData(deviceId, container.id, chartType);
         }
     });
@@ -578,8 +604,13 @@ function loadDeviceData(deviceId, containerId, chartType) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            deviceData[deviceId] = data.data;
-            createChart(containerId, deviceId, data.data, chartType);
+            // Check if this device belongs to the user before processing
+            if (data.user_id === getCurrentUserId() || !data.user_id) {
+                deviceData[deviceId] = data.data;
+                createChart(containerId, deviceId, data.data, chartType);
+            } else {
+                console.log(`Device ${deviceId} does not belong to current user`);
+            }
         }
     })
     .catch(error => {

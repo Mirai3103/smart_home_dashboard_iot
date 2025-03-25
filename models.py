@@ -18,10 +18,6 @@ class User(UserMixin, db.Model):
     is_admin = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_login = db.Column(db.DateTime)
-    access_token = db.Column(db.String(256), nullable=True)
-    token_expiry = db.Column(db.DateTime, nullable=True)
-    
-    # API access token
     access_token = db.Column(db.String(128), unique=True, index=True)
     token_expiry = db.Column(db.DateTime)
     
@@ -173,7 +169,7 @@ class Device(db.Model):
     __tablename__ = 'devices'
     
     id = db.Column(db.Integer, primary_key=True)
-    device_id = db.Column(db.String(50), unique=True, nullable=False)
+    device_id = db.Column(db.String(50), unique=True, nullable=False, index=True)
     name = db.Column(db.String(100), nullable=False)
     type = db.Column(db.String(50), nullable=False)
     room_id = db.Column(db.Integer, db.ForeignKey('rooms.id'), nullable=False)
@@ -181,9 +177,15 @@ class Device(db.Model):
     last_seen = db.Column(db.DateTime, default=datetime.utcnow)
     is_active = db.Column(db.Boolean, default=True)
     
-    # Relationships
-    sensor_data = db.relationship('SensorData', backref='device', lazy=True, cascade="all, delete-orphan")
-    user_actions = db.relationship('UserAction', backref='device', lazy=True, cascade="all, delete-orphan")
+    # Relationships using device_id as the key
+    sensor_data = db.relationship('SensorData', backref='device', lazy=True, 
+                                 foreign_keys='SensorData.device_id',
+                                 primaryjoin='Device.device_id==SensorData.device_id',
+                                 cascade="all, delete-orphan")
+    user_actions = db.relationship('UserAction', backref='device', lazy=True, 
+                                  foreign_keys='UserAction.device_id',
+                                  primaryjoin='Device.device_id==UserAction.device_id',
+                                  cascade="all, delete-orphan")
     
     def __repr__(self):
         return f'<Device {self.name} ({self.device_id})>'
@@ -205,7 +207,7 @@ class SensorData(db.Model):
     __tablename__ = 'sensor_data'
     
     id = db.Column(db.Integer, primary_key=True)
-    device_id = db.Column(db.Integer, db.ForeignKey('devices.id'), nullable=False)
+    device_id = db.Column(db.String(50), db.ForeignKey('devices.device_id'), nullable=False) 
     value = db.Column(db.Float, nullable=False)
     unit = db.Column(db.String(10))
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
@@ -230,8 +232,8 @@ class SensorData(db.Model):
 class UserAction(db.Model):
     __tablename__ = 'user_actions'
     
-    id = db.Column(db.Integer, primary_key=True)
-    device_id = db.Column(db.Integer, db.ForeignKey('devices.id'), nullable=False)
+    id = db.Column(db.Integer, primary_key=True) 
+    device_id = db.Column(db.String(50), db.ForeignKey('devices.device_id'), nullable=False) 
     action = db.Column(db.String(50), nullable=False)
     value = db.Column(db.String(50))
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)

@@ -1,0 +1,836 @@
+{% extends "base.html" %} {% block title %}Admin - Home Management{% endblock %}
+{% block content %}
+<div class="container-fluid">
+  
+      <div class="card flex justify-content-center">
+        <div
+          class="card-header d-flex justify-content-between align-items-center"
+        >
+          <h3>Home Management</h3>
+          <button class="btn btn-primary" id="addHomeBtn" onclick="showAddHomeModal()">Add Home</button>
+        </div>
+        <div class="card-body">
+          <table class="table table-striped">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Address</th>
+                <th>Owner</th>
+                <th>Created</th>
+                <th>Floors</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for home in homes %}
+              <tr>
+                <td>{{ home.id }}</td>
+                <td>{{ home.name }}</td>
+                <td>{{ home.address }}</td>
+                <td>
+                  {% for user in users if user.id == home.owner_id %} {{
+                  user.username }} {% endfor %}
+                </td>
+                <td>
+                  {{ home.created_at.strftime('%Y-%m-%d') if home.created_at
+                  else '' }}
+                </td>
+                <td>{{ home.floors|length }}</td>
+                <td>
+                  <button
+                    class="btn btn-sm btn-info edit-home"
+                    data-id="{{ home.id }}"
+                    onclick="editHome('{{ home.id }}')"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    class="btn btn-sm btn-danger delete-home"
+                    data-id="{{ home.id }}"
+                  >
+                    Delete
+                  </button>
+                  <button
+                    class="btn btn-sm btn-secondary view-floors"
+                    data-id="{{ home.id }}"
+                    onclick="viewFloors('{{ home.id }}', '{{ home.name }}')"
+                  >
+                    Floors
+                  </button>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Home Modal -->
+<div
+  class="modal fade"
+  id="homeModal"
+  tabindex="-1"
+  role="dialog"
+  aria-labelledby="homeModalLabel"
+  aria-hidden="true"
+>
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="homeModalLabel">Edit Home</h5>
+        <button
+          type="button"
+          class="close"
+          data-dismiss="modal"
+          aria-label="Close"
+        >
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="homeForm">
+          <input type="hidden" id="homeId" name="id" />
+          <div class="form-group">
+            <label for="homeName">Name</label>
+            <input
+              type="text"
+              class="form-control"
+              id="homeName"
+              name="name"
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label for="homeAddress">Address</label>
+            <input
+              type="text"
+              class="form-control"
+              id="homeAddress"
+              name="address"
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label for="homeOwner">Owner</label>
+            <select
+              class="form-control"
+              id="homeOwner"
+              name="owner_id"
+              required
+            >
+              {% for user in users %}
+              <option value="{{ user.id }}">{{ user.username }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">
+          Close
+        </button>
+        <button type="button" class="btn btn-primary" id="saveHome">
+          Save changes
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Floor Management Modal -->
+<div
+  class="modal fade"
+  id="floorsModal"
+  tabindex="-1"
+  role="dialog"
+  aria-labelledby="floorsModalLabel"
+  aria-hidden="true"
+>
+  <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="floorsModalLabel">Manage Floors</h5>
+        <button
+          type="button"
+          class="close"
+          data-dismiss="modal"
+          aria-label="Close"
+        >
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="d-flex justify-content-between mb-3">
+          <h6 id="homeNameTitle"></h6>
+          <button class="btn btn-primary btn-sm" id="addFloorBtn">
+            Add Floor
+          </button>
+        </div>
+        <table class="table table-sm table-striped">
+          <thead>
+            <tr>
+              <th>Floor #</th>
+              <th>Name</th>
+              <th>Rooms</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="floorsTableBody">
+            <tr>
+              <td colspan="4" class="text-center">Loading...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Floor Edit Modal -->
+<div
+  class="modal fade"
+  id="floorEditModal"
+  tabindex="-1"
+  role="dialog"
+  aria-labelledby="floorEditModalLabel"
+  aria-hidden="true"
+>
+  <div class="modal-dialog modal-sm" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="floorEditModalLabel">Edit Floor</h5>
+        <button
+          type="button"
+          class="close"
+          data-dismiss="modal"
+          aria-label="Close"
+        >
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="floorForm">
+          <input type="hidden" id="floorId" name="id" />
+          <input type="hidden" id="floorHomeId" name="home_id" />
+          <div class="form-group">
+            <label for="floorNumber">Floor Number</label>
+            <input
+              type="number"
+              class="form-control"
+              id="floorNumber"
+              name="floor_number"
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label for="floorName">Name</label>
+            <input
+              type="text"
+              class="form-control"
+              id="floorName"
+              name="name"
+              required
+            />
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">
+          Close
+        </button>
+        <button type="button" class="btn btn-primary" id="saveFloor">
+          Save
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Room Management Modal -->
+<div
+  class="modal fade"
+  id="roomsModal"
+  tabindex="-1"
+  role="dialog"
+  aria-labelledby="roomsModalLabel"
+  aria-hidden="true"
+>
+  <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="roomsModalLabel">Manage Rooms</h5>
+        <button
+          type="button"
+          class="close"
+          data-dismiss="modal"
+          aria-label="Close"
+        >
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="d-flex justify-content-between mb-3">
+          <h6 id="floorNameTitle"></h6>
+          <button class="btn btn-primary btn-sm" id="addRoomBtn">
+            Add Room
+          </button>
+        </div>
+        <table class="table table-sm table-striped">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Devices</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="roomsTableBody">
+            <tr>
+              <td colspan="4" class="text-center">Loading...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Room Edit Modal -->
+<div
+  class="modal fade"
+  id="roomEditModal"
+  tabindex="-1"
+  role="dialog"
+  aria-labelledby="roomEditModalLabel"
+  aria-hidden="true"
+>
+  <div class="modal-dialog modal-sm" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="roomEditModalLabel">Edit Room</h5>
+        <button
+          type="button"
+          class="close"
+          data-dismiss="modal"
+          aria-label="Close"
+        >
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="roomForm">
+          <input type="hidden" id="roomId" name="id" />
+          <input type="hidden" id="roomFloorId" name="floor_id" />
+          <div class="form-group">
+            <label for="roomName">Room Name</label>
+            <input
+              type="text"
+              class="form-control"
+              id="roomName"
+              name="name"
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label for="roomType">Room Type</label>
+            <select
+              class="form-control"
+              id="roomType"
+              name="room_type"
+              required
+            >
+              <option value="living">Living Room</option>
+              <option value="kitchen">Kitchen</option>
+              <option value="bedroom">Bedroom</option>
+              <option value="bathroom">Bathroom</option>
+              <option value="dining">Dining Room</option>
+              <option value="office">Office</option>
+              <option value="hallway">Hallway</option>
+              <option value="entertainment">Entertainment Room</option>
+              <option value="fitness">Fitness Room</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">
+          Close
+        </button>
+        <button type="button" class="btn btn-primary" id="saveRoom">
+          Save
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% block scripts %}
+<!-- Make sure jQuery is properly loaded first -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/js/bootstrap.min.js"></script>
+<script src="/static/js/admin-common.js"></script>
+
+<!-- Fallback click handlers -->
+<script>
+  function showAddHomeModal() {
+    console.log("Fallback add home function called");
+    document.getElementById('homeModalLabel').textContent = 'Add New Home';
+    document.getElementById('homeForm').reset();
+    document.getElementById('homeId').value = '';
+    $('#homeModal').modal('show');
+  }
+  
+  function editHome(homeId) {
+    console.log("Fallback edit home function called", homeId);
+    document.getElementById('homeModalLabel').textContent = 'Edit Home';
+    
+    // Show loading
+    document.getElementById('saveHome').disabled = true;
+    document.getElementById('saveHome').textContent = 'Loading...';
+    
+    // Fetch home data and populate form
+    $.getJSON(`/admin/api/Home/${homeId}`)
+      .done(function (data) {
+        document.getElementById('homeId').value = data.id;
+        document.getElementById('homeName').value = data.name;
+        document.getElementById('homeAddress').value = data.address;
+        document.getElementById('homeOwner').value = data.owner_id;
+        
+        // Enable save button
+        document.getElementById('saveHome').disabled = false;
+        document.getElementById('saveHome').textContent = 'Save changes';
+        
+        $('#homeModal').modal('show');
+      })
+      .fail(function(xhr) {
+        alert('Error: ' + (xhr.responseJSON?.error || xhr.statusText || 'Unknown error'));
+        document.getElementById('saveHome').disabled = false;
+        document.getElementById('saveHome').textContent = 'Save changes';
+      });
+  }
+  
+  function viewFloors(homeId, homeName) {
+    console.log("Fallback view floors function called", homeId);
+    document.getElementById('homeNameTitle').textContent = `${homeName} - Floors`;
+    document.getElementById('floorsTableBody').innerHTML = '<tr><td colspan="4" class="text-center">Loading...</td></tr>';
+    $('#floorsTableBody').data('home-id', homeId);
+    $('#floorsModal').modal('show');
+    
+    // Load floors for this home
+    loadFloors(homeId);
+  }
+  
+  function loadFloors(homeId) {
+    $.getJSON(`/api/floors?home_id=${homeId}`, function (response) {
+      if (response.success) {
+        let floorRows = '';
+
+        if (response.floors.length === 0) {
+          floorRows = '<tr><td colspan="4" class="text-center">No floors found</td></tr>';
+        } else {
+          response.floors.forEach((floor) => {
+            floorRows += `
+              <tr>
+                <td>${floor.floor_number}</td>
+                <td>${floor.name || ''}</td>
+                <td>${floor.rooms ? floor.rooms.length : 0}</td>
+                <td>
+                  <button class="btn btn-sm btn-info edit-floor" data-id="${floor.id}">Edit</button>
+                  <button class="btn btn-sm btn-danger delete-floor" data-id="${floor.id}">Delete</button>
+                  <button class="btn btn-sm btn-secondary view-rooms" data-id="${floor.id}" data-name="${floor.name || 'Floor ' + floor.floor_number}">Rooms</button>
+                </td>
+              </tr>
+            `;
+          });
+        }
+
+        $('#floorsTableBody').html(floorRows);
+        $('#floorsTableBody').data('home-id', homeId);
+
+        // Attach event handlers to new buttons
+        attachFloorButtonHandlers();
+      } else {
+        $('#floorsTableBody').html(
+          '<tr><td colspan="4" class="text-center">Error loading floors</td></tr>'
+        );
+      }
+    });
+  }
+</script>
+
+<!-- Main application script -->
+<script>
+  $(document).ready(function () {
+    // Add Home button - using jQuery event alongside the fallback
+    $('#addHomeBtn').on('click', function() {
+      showAddHomeModal();
+    });
+
+    // Edit Home buttons - using jQuery event alongside the fallback
+    $('.edit-home').on('click', function() {
+      const homeId = $(this).data('id');
+      editHome(homeId);
+    });
+
+    // View floors - using jQuery event alongside the fallback
+    $('.view-floors').on('click', function() {
+      const homeId = $(this).data('id');
+      const homeName = $(this).closest('tr').find('td:nth-child(2)').text();
+      viewFloors(homeId, homeName);
+    });
+
+    // Delete Home
+    $('.delete-home').click(function () {
+      if (confirm('Are you sure you want to delete this home? This will also delete all floors, rooms, and devices in this home.')) {
+        const homeId = $(this).data('id');
+        const row = $(this).closest('tr');
+
+        // Disable button during deletion
+        $(this).prop('disabled', true).text('Deleting...');
+
+        $.ajax({
+          url: `/admin/api/Home/${homeId}`,
+          method: 'DELETE',
+          success: function () {
+            // Remove row from table without page reload
+            row.fadeOut(400, function () {
+              row.remove();
+              showAlert('Home deleted successfully', 'success');
+            });
+          },
+          error: function (xhr) {
+            handleAjaxError(xhr);
+            $(this).prop('disabled', false).text('Delete');
+          },
+        });
+      }
+    });
+
+    // Save Home
+    $('#saveHome').click(function () {
+      // Validate form
+      if (!$('#homeName').val() || !$('#homeAddress').val() || !$('#homeOwner').val()) {
+        alert('Please fill out all required fields');
+        return;
+      }
+
+      const homeData = {
+        name: $('#homeName').val(),
+        address: $('#homeAddress').val(),
+        owner_id: parseInt($('#homeOwner').val()),
+      };
+
+      const homeId = $('#homeId').val();
+      let method, url;
+
+      if (homeId) {
+        // Update existing home
+        method = 'PUT';
+        url = `/admin/api/Home/${homeId}`;
+      } else {
+        // Create new home
+        method = 'POST';
+        url = '/admin/api/Home';
+      }
+
+      // Disable button during submission
+      $('#saveHome').prop('disabled', true).text('Saving...');
+
+      console.log('Sending data:', JSON.stringify(homeData), 'to URL:', url);
+
+      $.ajax({
+        url: url,
+        method: method,
+        contentType: 'application/json',
+        data: JSON.stringify(homeData),
+        success: function (response) {
+          console.log('Success response:', response);
+          $('#homeModal').modal('hide');
+          showAlert('Home saved successfully', 'success');
+          location.reload();
+        },
+        error: function (xhr) {
+          handleAjaxError(xhr);
+        },
+        complete: function () {
+          $('#saveHome').prop('disabled', false).text('Save changes');
+        },
+      });
+    });
+
+    // Function to attach event handlers to floor action buttons
+    function attachFloorButtonHandlers() {
+      // Edit Floor
+      $('.edit-floor').click(function () {
+        const floorId = $(this).data('id');
+        const homeId = $('#floorsTableBody').data('home-id');
+
+        $('#floorEditModalLabel').text('Edit Floor');
+
+        // Fetch floor data and populate form
+        $.getJSON(`/admin/api/Floor/${floorId}`, function (data) {
+          $('#floorId').val(data.id);
+          $('#floorHomeId').val(homeId);
+          $('#floorNumber').val(data.floor_number);
+          $('#floorName').val(data.name);
+          $('#floorEditModal').modal('show');
+        });
+      });
+
+      // Delete Floor
+      $('.delete-floor').click(function () {
+        if (
+          confirm(
+            'Are you sure you want to delete this floor? This will also delete all rooms and devices on this floor.'
+          )
+        ) {
+          const floorId = $(this).data('id');
+          const homeId = $('#floorsTableBody').data('home-id');
+          const row = $(this).closest('tr');
+
+          // Disable button during deletion
+          $(this).prop('disabled', true).text('Deleting...');
+
+          $.ajax({
+            url: `/admin/api/Floor/${floorId}`,
+            method: 'DELETE',
+            success: function () {
+              // Remove row from table
+              row.fadeOut(400, function () {
+                row.remove();
+                showAlert('Floor deleted successfully', 'success');
+              });
+            },
+            error: function (xhr) {
+              handleAjaxError(xhr);
+              $(this).prop('disabled', false).text('Delete');
+            },
+          });
+        }
+      });
+
+      // View Rooms
+      $('.view-rooms').click(function () {
+        const floorId = $(this).data('id');
+        const floorName = $(this).data('name');
+
+        $('#floorNameTitle').text(`${floorName} - Rooms`);
+        $('#roomsTableBody').html(
+          '<tr><td colspan="4" class="text-center">Loading...</td></tr>'
+        );
+        $('#roomsTableBody').data('floor-id', floorId);
+        $('#roomsModal').modal('show');
+
+        // Load rooms for this floor
+        loadRooms(floorId);
+      });
+    }
+
+    // Add Room Button
+    $('#addRoomBtn').click(function () {
+      const floorId = $('#roomsTableBody').data('floor-id');
+
+      $('#roomEditModalLabel').text('Add New Room');
+      $('#roomForm')[0].reset();
+      $('#roomId').val('');
+      $('#roomFloorId').val(floorId);
+      $('#roomEditModal').modal('show');
+    });
+
+    // Save Room
+    $('#saveRoom').click(function () {
+      const roomData = {
+        floor_id: parseInt($('#roomFloorId').val()),
+        name: $('#roomName').val(),
+        room_type: $('#roomType').val(),
+      };
+
+      const roomId = $('#roomId').val();
+      let method, url;
+
+      if (roomId) {
+        // Update existing room
+        method = 'PUT';
+        url = `/admin/api/Room/${roomId}`;
+      } else {
+        // Create new room
+        method = 'POST';
+        url = '/admin/api/Room';
+      }
+
+      $.ajax({
+        url: url,
+        method: method,
+        contentType: 'application/json',
+        data: JSON.stringify(roomData),
+        success: function () {
+          $('#roomEditModal').modal('hide');
+          loadRooms(roomData.floor_id);
+        },
+        error: function (xhr) {
+          alert(
+            'Error: ' +
+              (xhr.responseJSON
+                ? xhr.responseJSON.error
+                : 'Unknown error occurred')
+          );
+        },
+      });
+    });
+
+    // Function to load rooms for a floor
+    function loadRooms(floorId) {
+      $.getJSON(`/admin/api/Floor/${floorId}`, function (floor) {
+        if (floor && floor.id) {
+          // Get all rooms for this floor
+          $.getJSON(`/admin/api/Room`, function (allRooms) {
+            const rooms = allRooms.filter((room) => room.floor_id === floor.id);
+            let roomRows = '';
+
+            if (rooms.length === 0) {
+              roomRows =
+                '<tr><td colspan="4" class="text-center">No rooms found</td></tr>';
+            } else {
+              rooms.forEach((room) => {
+                roomRows += `
+                                    <tr>
+                                        <td>${room.name}</td>
+                                        <td>${getRoomTypeName(
+                                          room.room_type
+                                        )}</td>
+                                        <td id="device-count-${
+                                          room.id
+                                        }">Loading...</td>
+                                        <td>
+                                            <button class="btn btn-sm btn-info edit-room" data-id="${
+                                              room.id
+                                            }">Edit</button>
+                                            <button class="btn btn-sm btn-danger delete-room" data-id="${
+                                              room.id
+                                            }">Delete</button>
+                                            <a href="/admin/devices?room_id=${
+                                              room.id
+                                            }" class="btn btn-sm btn-secondary">Devices</a>
+                                        </td>
+                                    </tr>
+                                `;
+
+                // Load device count asynchronously
+                $.getJSON(`/admin/api/Device`, function (allDevices) {
+                  const deviceCount = allDevices.filter(
+                    (device) => device.room_id === room.id
+                  ).length;
+                  $(`#device-count-${room.id}`).text(deviceCount);
+                });
+              });
+            }
+
+            $('#roomsTableBody').html(roomRows);
+            $('#roomsTableBody').data('floor-id', floorId);
+
+            // Attach event handlers to new buttons
+            attachRoomButtonHandlers();
+          });
+        } else {
+          $('#roomsTableBody').html(
+            '<tr><td colspan="4" class="text-center">Error loading rooms</td></tr>'
+          );
+        }
+      });
+    }
+
+    // Helper function to get room type display name
+    function getRoomTypeName(roomType) {
+      const roomTypes = {
+        living: 'Living Room',
+        kitchen: 'Kitchen',
+        bedroom: 'Bedroom',
+        bathroom: 'Bathroom',
+        dining: 'Dining Room',
+        office: 'Office',
+        hallway: 'Hallway',
+        entertainment: 'Entertainment Room',
+        fitness: 'Fitness Room',
+        other: 'Other',
+      };
+      return roomTypes[roomType] || roomType;
+    }
+
+    // Function to attach event handlers to room action buttons
+    function attachRoomButtonHandlers() {
+      // Edit Room
+      $('.edit-room').click(function () {
+        const roomId = $(this).data('id');
+        const floorId = $('#roomsTableBody').data('floor-id');
+
+        $('#roomEditModalLabel').text('Edit Room');
+
+        // Fetch room data and populate form
+        $.getJSON(`/admin/api/Room/${roomId}`, function (data) {
+          $('#roomId').val(data.id);
+          $('#roomFloorId').val(floorId);
+          $('#roomName').val(data.name);
+          $('#roomType').val(data.room_type);
+          $('#roomEditModal').modal('show');
+        });
+      });
+
+      // Delete Room
+      $('.delete-room').click(function () {
+        if (
+          confirm(
+            'Are you sure you want to delete this room? This will also delete all devices in this room.'
+          )
+        ) {
+          const roomId = $(this).data('id');
+          const floorId = $('#roomsTableBody').data('floor-id');
+          const row = $(this).closest('tr');
+
+          // Disable button during deletion
+          $(this).prop('disabled', true).text('Deleting...');
+
+          $.ajax({
+            url: `/admin/api/Room/${roomId}`,
+            method: 'DELETE',
+            success: function () {
+              // Remove row from table
+              row.fadeOut(400, function () {
+                row.remove();
+                showAlert('Room deleted successfully', 'success');
+              });
+            },
+            error: function (xhr) {
+              handleAjaxError(xhr);
+              $(this).prop('disabled', false).text('Delete');
+            },
+          });
+        }
+      });
+    }
+
+    // Handle modal close buttons
+    $('.modal .btn-secondary[data-dismiss="modal"]').click(function() {
+      $(this).closest('.modal').modal('hide');
+    });
+
+    $('.modal .close').click(function() {
+      $(this).closest('.modal').modal('hide');
+    });
+
+    // Explicitly initialize all modals
+    $('#homeModal, #floorsModal, #floorEditModal, #roomsModal, #roomEditModal').each(function() {
+      $(this).modal({
+        backdrop: true,
+        keyboard: true,
+        show: false
+      });
+    });
+  });
+</script>
+{% endblock %} {% endblock %}
