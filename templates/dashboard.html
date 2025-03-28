@@ -62,15 +62,6 @@ block custom_css %}
         </ul>
       </div>
       {% else %}
-      <div class="btn-group floor-nav" role="group">
-        <button
-          type="button"
-          class="btn btn-outline-primary room-filter"
-          data-room="all"
-        >
-          <i class="fas fa-home me-1"></i> All Rooms
-        </button>
-      </div>
       {% endif %}
     </div>
   </div>
@@ -86,7 +77,7 @@ block custom_css %}
 {% elif not current_home %}
 <div class="alert alert-warning">
   <i class="fas fa-exclamation-triangle me-2"></i>
-  Please select a home to view its dashboard.
+  <!-- Removed the text: "Please select a home to view its dashboard." -->
 </div>
 {% else %}
 
@@ -99,11 +90,10 @@ block custom_css %}
   </div>
   <div class="card-body">
     <p><i class="fas fa-map-marker-alt me-2"></i>{{ current_home.address }}</p>
-    {% if current_user.is_admin or current_home.owner_id == current_user.id %}
+    {% if current_home.owner_id == current_user.id %}
     <span class="badge bg-success">
       <i class="fas fa-user-check me-1"></i>
-      {% if current_home.owner_id == current_user.id %}Owner{% else %}Admin
-      Access{% endif %}
+      Owner
     </span>
     {% else %}
     <span class="badge bg-info">
@@ -116,15 +106,30 @@ block custom_css %}
 <!-- Check if home has any devices -->
 {% set total_devices = 0 %} {% for floor in current_home.floors %} {% for room
 in floor.rooms %} {% set total_devices = total_devices + room.devices|length %}
-{% endfor %} {% endfor %} {% if total_devices == 0 %}
-<div class="alert alert-info">
+{% endfor %} {% endfor %}
+
+<!-- Debug Info -->
+<script>
+  console.log("Total devices: {{ total_devices }}");
+  // Log API device data when loaded (new)
+  window.apiDevicesLoaded = function(count) {
+    console.log("API devices loaded: " + count);
+    document.getElementById('api-device-count').textContent = count;
+  };
+</script>
+
+<!-- Hidden counter to track API device count -->
+<span id="api-device-count" style="display:none">0</span>
+
+{% if total_devices == 0 %}
+<div class="alert alert-info" id="no-devices-message">
   <i class="fas fa-info-circle me-2"></i>
   This home doesn't have any devices registered yet. Please contact the
   administrator to set up smart home devices.
 </div>
 {% else %}
 
-<!-- Dashboard Stats Summary -->
+<!-- Dashboard Stats Summary - Ensure this is visible when we have devices -->
 <div class="row dashboard-stats">
   <div class="col-md-3 col-sm-6">
     <div class="stat-card">
@@ -132,7 +137,7 @@ in floor.rooms %} {% set total_devices = total_devices + room.devices|length %}
         <i class="fas fa-microchip"></i>
       </div>
       <div class="stat-card-title">Connected Devices</div>
-      <div class="stat-card-value">{{ total_devices }}</div>
+      <div class="stat-card-value" id="totalDevices">{{ total_devices }}</div>
     </div>
   </div>
 
@@ -147,7 +152,7 @@ in floor.rooms %} {% set total_devices = total_devices + room.devices|length %}
         <i class="fas fa-wifi"></i>
       </div>
       <div class="stat-card-title">Online Devices</div>
-      <div class="stat-card-value">{{ online_devices }}</div>
+      <div class="stat-card-value" id="onlineDevices">{{ online_devices }}</div>
     </div>
   </div>
   <div class="col-md-3 col-sm-6">
@@ -568,185 +573,266 @@ current_home.floors|sort(attribute='floor_number') %}
 </div>
 {% endif %} {% endif %} {% endblock %} {% block custom_js %}
 <script src="{{ url_for('static', filename='js/charts.js') }}"></script>
-<script src="{{ url_for('static', filename='js/socket_recovery.js') }}"></script>
-<script src="{{ url_for('static', filename='js/socket_ping.js') }}"></script>
 <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 <script>
-  // Floor navigation functionality
-  document.addEventListener('DOMContentLoaded', function () {
-    const floorButtons = document.querySelectorAll('.floor-button');
-    const floorContainers = document.querySelectorAll('.floor-container');
+    // Floor navigation functionality
+    document.addEventListener('DOMContentLoaded', function () {
+      // Create a local scope for these functions to avoid global namespace conflicts
+      (function() {
+        const floorButtons = document.querySelectorAll('.floor-button');
+        const floorContainers = document.querySelectorAll('.floor-container');
 
-    // Add click event to floor buttons
-    floorButtons.forEach((button) => {
-      button.addEventListener('click', function () {
-        const floorNum = this.getAttribute('data-floor');
+        // Add click event to floor buttons
+        floorButtons.forEach((button) => {
+          button.addEventListener('click', function () {
+            const floorNum = this.getAttribute('data-floor');
 
-        // Update active button
-        floorButtons.forEach((btn) => btn.classList.remove('active'));
-        this.classList.add('active');
+            // Update active button
+            floorButtons.forEach((btn) => btn.classList.remove('active'));
+            this.classList.add('active');
 
-        // Show selected floor, hide others
-        floorContainers.forEach((container) => {
-          if (container.id === `floor-${floorNum}`) {
-            container.classList.add('active');
-          } else {
-            container.classList.remove('active');
-          }
+            // Show selected floor, hide others
+            floorContainers.forEach((container) => {
+              if (container.id === `floor-${floorNum}`) {
+                container.classList.add('active');
+              } else {
+                container.classList.remove('active');
+              }
+            });
+
+            // Update URL with selected floor (optional)
+            const url = new URL(window.location);
+            url.searchParams.set('floor', floorNum);
+            window.history.replaceState({}, '', url);
+          });
         });
 
-        // Update URL with selected floor (optional)
-        const url = new URL(window.location);
-        url.searchParams.set('floor', floorNum);
-        window.history.replaceState({}, '', url);
-      });
-    });
-
-    // Check URL parameters for floor selection on page load
-    const urlParams = new URLSearchParams(window.location.search);
-    const floorParam = urlParams.get('floor');
-    if (floorParam) {
-      const floorButton = document.querySelector(
-        `.floor-button[data-floor="${floorParam}"]`
-      );
-      if (floorButton) {
-        floorButton.click();
-      }
-    }
-
-    // Device control functionality - Send commands to Shiftr.io
-    const deviceActionButtons = document.querySelectorAll('.device-action-btn');
-
-    deviceActionButtons.forEach((btn) => {
-      btn.addEventListener('click', function () {
-        const deviceId = this.getAttribute('data-device-id');
-        const action = this.getAttribute('data-action');
-        let payload = {};
-
-        // Different actions for different device types
-        if (deviceId.includes('temp')) {
-          if (action === 'calibrate') {
-            payload = { command: 'calibrate', value: 0, unit: 'celsius' };
-          } else if (action === 'set_threshold') {
-            const threshold = prompt('Enter temperature threshold (°C):', '25');
-            if (threshold === null) return; // User canceled
-            payload = {
-              command: 'set_threshold',
-              value: parseFloat(threshold),
-              unit: 'celsius',
-            };
-          } else if (action === 'power_save') {
-            payload = { command: 'power_save', value: true };
-          }
-        } else if (deviceId.includes('humidity')) {
-          if (action === 'calibrate') {
-            payload = { command: 'calibrate', value: 0, unit: 'percent' };
-          } else if (action === 'set_threshold') {
-            const threshold = prompt('Enter humidity threshold (%):', '50');
-            if (threshold === null) return; // User canceled
-            payload = {
-              command: 'set_threshold',
-              value: parseFloat(threshold),
-              unit: 'percent',
-            };
-          } else if (action === 'auto_mode') {
-            payload = { command: 'auto_mode', value: true };
-          }
-        } else if (deviceId.includes('light')) {
-          if (action === 'toggle') {
-            const currentState = this.getAttribute('data-state') === 'on';
-            const newState = !currentState;
-            this.setAttribute('data-state', newState ? 'on' : 'off');
-            payload = { command: 'power', value: newState };
-          } else if (action === 'brightness') {
-            const brightness = prompt('Enter brightness level (0-100):', '50');
-            if (brightness === null) return; // User canceled
-            payload = {
-              command: 'brightness',
-              value: parseInt(brightness),
-              unit: 'percent',
-            };
-          } else if (action === 'color_temp') {
-            const colorTemp = prompt(
-              'Enter color temperature (2700-6500K):',
-              '4000'
-            );
-            if (colorTemp === null) return; // User canceled
-            payload = {
-              command: 'color_temp',
-              value: parseInt(colorTemp),
-              unit: 'kelvin',
-            };
+        // Check URL parameters for floor selection on page load
+        const urlParams = new URLSearchParams(window.location.search);
+        const floorParam = urlParams.get('floor');
+        if (floorParam) {
+          const floorButton = document.querySelector(
+            `.floor-button[data-floor="${floorParam}"]`
+          );
+          if (floorButton) {
+            floorButton.click();
           }
         }
 
-        // Send command to device via Shiftr.io
-        sendDeviceCommand(deviceId, action, payload);
+        // Device control functionality - Send commands to server via REST API
+        const deviceActionButtons = document.querySelectorAll('.device-action-btn');
 
-        // Show feedback to user
-        showCommandFeedback(deviceId, action);
-      });
-    });
+        deviceActionButtons.forEach((btn) => {
+          btn.addEventListener('click', function () {
+            const deviceId = this.getAttribute('data-device-id');
+            const action = this.getAttribute('data-action');
+            let payload = {};
 
-    function sendDeviceCommand(deviceId, action, payload) {
-      // Add timestamp and device ID to payload
-      payload.timestamp = new Date().toISOString();
-      payload.device_id = deviceId;
-      payload.action = action;
+            // Different actions for different device types
+            if (deviceId.includes('temp')) {
+              if (action === 'calibrate') {
+                payload = { command: 'calibrate', value: 0, unit: 'celsius' };
+              } else if (action === 'set_threshold') {
+                const threshold = prompt('Enter temperature threshold (°C):', '25');
+                if (threshold === null) return; // User canceled
+                payload = {
+                  command: 'set_threshold',
+                  value: parseFloat(threshold),
+                  unit: 'celsius',
+                };
+              } else if (action === 'power_save') {
+                payload = { command: 'power_save', value: true };
+              }
+            } else if (deviceId.includes('humidity')) {
+              if (action === 'calibrate') {
+                payload = { command: 'calibrate', value: 0, unit: 'percent' };
+              } else if (action === 'set_threshold') {
+                const threshold = prompt('Enter humidity threshold (%):', '50');
+                if (threshold === null) return; // User canceled
+                payload = {
+                  command: 'set_threshold',
+                  value: parseFloat(threshold),
+                  unit: 'percent',
+                };
+              } else if (action === 'auto_mode') {
+                payload = { command: 'auto_mode', value: true };
+              }
+            } else if (deviceId.includes('light')) {
+              if (action === 'toggle') {
+                const currentState = this.getAttribute('data-state') === 'on';
+                const newState = !currentState;
+                this.setAttribute('data-state', newState ? 'on' : 'off');
+                payload = { command: 'power', value: newState };
+              } else if (action === 'brightness') {
+                const brightness = prompt('Enter brightness level (0-100):', '50');
+                if (brightness === null) return; // User canceled
+                payload = {
+                  command: 'brightness',
+                  value: parseInt(brightness),
+                  unit: 'percent',
+                };
+              } else if (action === 'color_temp') {
+                const colorTemp = prompt(
+                  'Enter color temperature (2700-6500K):',
+                  '4000'
+                );
+                if (colorTemp === null) return; // User canceled
+                payload = {
+                  command: 'color_temp',
+                  value: parseInt(colorTemp),
+                  unit: 'kelvin',
+                };
+              }
+            }
 
-      // Send to backend API, which will forward to Shiftr.io
-      fetch('/api/device_control', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      })
-        .then((response) => response.json())
-        .then((data) => {
-          console.log('Command sent successfully:', data);
-        })
-        .catch((error) => {
-          console.error('Error sending command:', error);
-          alert('Failed to send command to device. Please try again.');
+            // Send command to device via API
+            sendDeviceCommand(deviceId, action, payload);
+
+            // Show feedback to user
+            showCommandFeedback(deviceId, action);
+          });
         });
+
+        function sendDeviceCommand(deviceId, action, payload) {
+          // Add timestamp and device ID to payload
+          payload.timestamp = new Date().toISOString();
+          payload.device_id = deviceId;
+          payload.action = action;
+
+          // Use the existing '/api/devices/${deviceId}/control' endpoint
+          fetch(`/api/devices/${deviceId}/control`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Requested-With': 'XMLHttpRequest'
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify(payload),
+          })
+            .then((response) => response.json())
+            .then((data) => {
+              console.log('Command sent successfully:', data);
+              if (data.success) {
+                showCommandFeedback(deviceId, action, 'success');
+              } else {
+                showCommandFeedback(deviceId, action, 'danger');
+              }
+            })
+            .catch((error) => {
+              console.error('Error sending command:', error);
+              showCommandFeedback(deviceId, action, 'danger');
+            });
+        }
+
+        function showCommandFeedback(deviceId, action, status = 'success') {
+          // Display a temporary notification near the device
+          const deviceElement = document.querySelector(
+            `[data-device-id="${deviceId}"]`
+          );
+          if (!deviceElement) return;
+
+          const feedbackElement = document.createElement('div');
+          feedbackElement.classList.add(
+            'command-feedback',
+            'alert',
+            `alert-${status}`,
+            'position-absolute'
+          );
+          feedbackElement.style.top = '10px';
+          feedbackElement.style.right = '10px';
+          feedbackElement.style.zIndex = '100';
+          feedbackElement.style.opacity = '0';
+          feedbackElement.style.transition = 'opacity 0.3s ease-in-out';
+          feedbackElement.style.padding = '8px 12px';
+          feedbackElement.style.fontSize = '14px';
+          feedbackElement.style.borderRadius = '4px';
+          feedbackElement.style.boxShadow = '0 2px 10px rgba(0,0,0,0.2)';
+          
+          if (status === 'success') {
+            feedbackElement.textContent = `Command "${action}" sent!`;
+          } else {
+            feedbackElement.textContent = `Failed to send "${action}"`;
+          }
+
+          deviceElement.style.position = 'relative';
+          deviceElement.appendChild(feedbackElement);
+
+          // Show and then fade out
+          setTimeout(() => {
+            feedbackElement.style.opacity = '1';
+          }, 10);
+          setTimeout(() => {
+            feedbackElement.style.opacity = '0';
+            setTimeout(() => feedbackElement.remove(), 300);
+          }, 2000);
+        }
+      })(); // Immediately invoke the function to create a closure
+    });
+    
+    // Add toast notification system for debug info and status updates
+    function showToast(message, type = 'info') {
+      const toastContainer = document.getElementById('toast-container') || createToastContainer();
+      const toast = document.createElement('div');
+      toast.className = `toast show bg-${type} text-white`;
+      toast.setAttribute('role', 'alert');
+      toast.setAttribute('aria-live', 'assertive');
+      toast.setAttribute('aria-atomic', 'true');
+      
+      toast.innerHTML = `
+        <div class="toast-header bg-${type} text-white">
+          <strong class="me-auto">Dashboard Notification</strong>
+          <small>Just now</small>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body">
+          ${message}
+        </div>
+      `;
+      
+      toastContainer.appendChild(toast);
+      
+      // Auto dismiss after 5 seconds
+      setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+      }, 5000);
+    }
+    
+    function createToastContainer() {
+      const container = document.createElement('div');
+      container.id = 'toast-container';
+      container.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+      container.style.zIndex = '1050';
+      document.body.appendChild(container);
+      return container;
     }
 
-    function showCommandFeedback(deviceId, action) {
-      // Display a temporary notification near the device
-      const deviceElement = document.querySelector(
-        `[data-device-id="${deviceId}"]`
-      );
-      if (!deviceElement) return;
-
-      const feedbackElement = document.createElement('div');
-      feedbackElement.classList.add(
-        'command-feedback',
-        'alert',
-        'alert-success',
-        'position-absolute'
-      );
-      feedbackElement.style.top = '10px';
-      feedbackElement.style.right = '10px';
-      feedbackElement.style.zIndex = '100';
-      feedbackElement.style.opacity = '0';
-      feedbackElement.style.transition = 'opacity 0.3s ease-in-out';
-      feedbackElement.textContent = `Command "${action}" sent!`;
-
-      deviceElement.style.position = 'relative';
-      deviceElement.appendChild(feedbackElement);
-
-      // Show and then fade out
-      setTimeout(() => {
-        feedbackElement.style.opacity = '1';
-      }, 10);
-      setTimeout(() => {
-        feedbackElement.style.opacity = '0';
-        setTimeout(() => {
-          feedbackElement.remove();
-        }, 300);
-      }, 2000);
-    }
-  });
+    // Add fail-safe script to fix device visibility issues
+    document.addEventListener('DOMContentLoaded', function() {
+        // Watch for changes to the API device count
+        const apiDeviceCountEl = document.getElementById('api-device-count');
+        if (apiDeviceCountEl) {
+            const observer = new MutationObserver(function(mutations) {
+                mutations.forEach(function(mutation) {
+                    const deviceCount = parseInt(apiDeviceCountEl.textContent, 10);
+                    if (deviceCount > 0) {
+                        const noDevicesMessage = document.getElementById('no-devices-message');
+                        if (noDevicesMessage) {
+                            noDevicesMessage.style.display = 'none';
+                            console.log('Hidden no-devices-message via mutation observer');
+                        }
+                        
+                        const dashboardStats = document.querySelector('.dashboard-stats');
+                        if (dashboardStats && window.getComputedStyle(dashboardStats).display === 'none') {
+                            dashboardStats.style.display = 'flex';
+                            console.log('Shown dashboard-stats via mutation observer');
+                        }
+                    }
+                });
+            });
+            
+            observer.observe(apiDeviceCountEl, { childList: true, characterData: true, subtree: true });
+        }
+    });
 </script>
 {% endblock %}

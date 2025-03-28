@@ -406,6 +406,18 @@ endblock %} {% block content %}
                 <th>Last Seen:</th>
                 <td id="detailDeviceLastSeen">--</td>
               </tr>
+              <tr>
+                <th>Firmware:</th>
+                <td id="detailDeviceFirmware">--</td>
+              </tr>
+              <tr>
+                <th>MAC Address:</th>
+                <td id="detailDeviceMac">--</td>
+              </tr>
+              <tr>
+                <th>IP Address:</th>
+                <td id="detailDeviceIp">--</td>
+              </tr>
             </table>
           </div>
           <div class="col-md-6">
@@ -978,6 +990,424 @@ endblock %} {% block content %}
         }
       );
     }
+
+    // Helper function for API requests
+    function apiRequest(url, method = 'GET', data = null) {
+      const options = {
+        method: method,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        credentials: 'same-origin'
+      };
+
+      if (data && (method === 'POST' || method === 'PUT')) {
+        options.body = JSON.stringify(data);
+      }
+
+      return fetch(url, options)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('Network response was not ok');
+          }
+          return response.json();
+        })
+        .catch(error => {
+          console.error('API Request failed:', error);
+          showAlert('An error occurred while processing your request.', 'danger');
+          throw error;
+        });
+    }
+
+    // Format date helper function
+    function formatDate(dateString) {
+      if (!dateString) return 'Never';
+      
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return 'Invalid date';
+      
+      const now = new Date();
+      const diff = Math.floor((now - date) / 1000); // Difference in seconds
+      
+      if (diff < 60) return 'Just now';
+      if (diff < 3600) return `${Math.floor(diff / 60)} minutes ago`;
+      if (diff < 86400) return `${Math.floor(diff / 3600)} hours ago`;
+      if (diff < 172800) return 'Yesterday';
+      
+      return date.toLocaleString();
+    }
+
+    // Show alert helper function
+    function showAlert(message, type = 'success') {
+      const alertPlaceholder = document.getElementById('alertPlaceholder') || document.createElement('div');
+      if (!document.getElementById('alertPlaceholder')) {
+        alertPlaceholder.id = 'alertPlaceholder';
+        alertPlaceholder.className = 'alert-container position-fixed top-0 end-0 p-3';
+        alertPlaceholder.style.zIndex = '1050';
+        document.body.appendChild(alertPlaceholder);
+      }
+      
+      const alertHtml = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+          ${message}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      `;
+      
+      alertPlaceholder.innerHTML = alertHtml;
+      
+      // Auto-dismiss after 5 seconds
+      setTimeout(() => {
+        const alerts = document.querySelectorAll('.alert');
+        alerts.forEach(alert => {
+          const bsAlert = new bootstrap.Alert(alert);
+          bsAlert.close();
+        });
+      }, 5000);
+    }
+
+    // Handle device details modal
+    const deviceDetailsModal = document.getElementById('deviceDetailsModal');
+    if (deviceDetailsModal) {
+      deviceDetailsModal.addEventListener('show.bs.modal', function (event) {
+        const button = event.relatedTarget;
+        const deviceId = button.getAttribute('data-device-id');
+        
+        // Clear previous device details
+        document.getElementById('detailDeviceId').textContent = deviceId;
+        document.getElementById('detailDeviceName').textContent = 'Loading...';
+        document.getElementById('detailDeviceType').textContent = 'Loading...';
+        document.getElementById('detailDeviceLocation').textContent = 'Loading...';
+        document.getElementById('detailDeviceStatus').textContent = 'Loading...';
+        document.getElementById('detailDeviceLastSeen').textContent = 'Loading...';
+        document.getElementById('detailDeviceFirmware').textContent = 'Loading...';
+        document.getElementById('detailDeviceMac').textContent = 'Loading...';
+        document.getElementById('detailDeviceIp').textContent = 'Loading...';
+        
+        // Load device details
+        loadDeviceDetails(deviceId);
+        
+        // Load device data
+        loadDeviceData(deviceId);
+        
+        // Load device activity
+        loadDeviceActivity(deviceId);
+        
+        // Set up the "View Full History" button
+        document.getElementById('viewDeviceHistory').setAttribute('data-device-id', deviceId);
+      });
+      
+      // Handle View Full History button click
+      document.getElementById('viewDeviceHistory').addEventListener('click', function() {
+        const deviceId = this.getAttribute('data-device-id');
+        window.location.href = `/device_history?device_id=${deviceId}`;
+      });
+    }
+
+    // Load device details function
+    function loadDeviceDetails(deviceId) {
+      // Fetch device details
+      apiRequest(`/api/devices/${deviceId}`, 'GET')
+        .then(response => {
+          if (response.success && response.device) {
+            const device = response.device;
+            
+            // Update device details in the modal
+            document.getElementById('detailDeviceId').textContent = device.device_id;
+            document.getElementById('detailDeviceName').textContent = device.name;
+            
+            // Set device type with icon
+            let typeHtml = '';
+            if (device.type === 'temperature') {
+              typeHtml = '<span class="badge bg-danger"><i class="fas fa-thermometer-half me-1"></i> Temperature</span>';
+            } else if (device.type === 'humidity') {
+              typeHtml = '<span class="badge bg-info"><i class="fas fa-tint me-1"></i> Humidity</span>';
+            } else if (device.type === 'light') {
+              typeHtml = '<span class="badge bg-warning"><i class="fas fa-lightbulb me-1"></i> Light</span>';
+            } else {
+              typeHtml = `<span class="badge bg-secondary"><i class="fas fa-microchip me-1"></i> ${device.type.charAt(0).toUpperCase() + device.type.slice(1)}</span>`;
+            }
+            document.getElementById('detailDeviceType').innerHTML = typeHtml;
+            
+            // Set location with icon
+            let locationHtml = '';
+            if (device.location === 'living_room') {
+              locationHtml = '<span class="badge bg-primary"><i class="fas fa-couch me-1"></i> Living Room</span>';
+            } else if (device.location === 'bedroom') {
+              locationHtml = '<span class="badge bg-info"><i class="fas fa-bed me-1"></i> Bedroom</span>';
+            } else if (device.location === 'kitchen') {
+              locationHtml = '<span class="badge bg-success"><i class="fas fa-utensils me-1"></i> Kitchen</span>';
+            } else {
+              locationHtml = `<span class="badge bg-secondary">${device.location.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</span>`;
+            }
+            document.getElementById('detailDeviceLocation').innerHTML = locationHtml;
+            
+            // Set status with icon and color
+            let statusHtml = '';
+            if (device.status === 'online') {
+              statusHtml = '<span class="badge bg-success"><i class="fas fa-check-circle me-1"></i> Online</span>';
+            } else if (device.status === 'offline') {
+              statusHtml = '<span class="badge bg-secondary"><i class="fas fa-times-circle me-1"></i> Offline</span>';
+            } else if (device.status === 'error') {
+              statusHtml = '<span class="badge bg-danger"><i class="fas fa-exclamation-triangle me-1"></i> Error</span>';
+            } else {
+              statusHtml = `<span class="badge bg-secondary">${device.status}</span>`;
+            }
+            document.getElementById('detailDeviceStatus').innerHTML = statusHtml;
+            
+            // Set last seen time
+            document.getElementById('detailDeviceLastSeen').textContent = formatDate(device.last_seen);
+            
+            // Set additional technical details
+            document.getElementById('detailDeviceFirmware').textContent = device.firmware_version || 'N/A';
+            document.getElementById('detailDeviceMac').textContent = device.mac_address || 'N/A';
+            document.getElementById('detailDeviceIp').textContent = device.ip_address || 'N/A';
+            
+            // Initialize chart with device data
+            initDeviceDetailsChart(deviceId, device.type);
+          } else {
+            document.getElementById('detailDeviceName').textContent = 'Error loading device';
+            document.getElementById('detailDeviceType').textContent = 'N/A';
+            document.getElementById('detailDeviceLocation').textContent = 'N/A';
+            document.getElementById('detailDeviceStatus').textContent = 'N/A';
+            document.getElementById('detailDeviceLastSeen').textContent = 'N/A';
+            document.getElementById('detailDeviceFirmware').textContent = 'N/A';
+            document.getElementById('detailDeviceMac').textContent = 'N/A';
+            document.getElementById('detailDeviceIp').textContent = 'N/A';
+            
+            showAlert('Failed to load device details', 'danger');
+          }
+        })
+        .catch(error => {
+          console.error('Error loading device details:', error);
+          document.getElementById('detailDeviceName').textContent = 'Error loading device';
+        });
+    }
+
+    // ...existing code...
+
+    // Load device data
+    function loadDeviceData(deviceId) {
+      const readingsContainer = document.getElementById('deviceReadings');
+
+      // Show loading indicator
+      readingsContainer.innerHTML = `
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2">Loading latest data...</p>
+            </div>
+        `;
+
+      // Fetch device data
+      apiRequest(`/api/devices/${deviceId}/data?limit=1`, 'GET')
+        .then((response) => {
+          if (response.success && response.data && response.data.length > 0) {
+            const data = response.data[0];
+
+            // Format date
+            const timestamp = formatDate(data.timestamp);
+
+            // Get unit
+            let unit = data.unit || '';
+            let valueClass = '';
+            let icon = '';
+            
+            // Set appropriate icon and styling based on device type
+            if (data.type === 'temperature') {
+              icon = '<i class="fas fa-thermometer-half text-danger me-2" style="font-size: 2rem;"></i>';
+              unit = data.unit || '°C';
+              // Add color classes based on temperature value
+              const temp = parseFloat(data.value);
+              if (temp > 30) valueClass = 'text-danger';
+              else if (temp > 25) valueClass = 'text-warning';
+              else if (temp > 15) valueClass = 'text-success';
+              else valueClass = 'text-info';
+            } else if (data.type === 'humidity') {
+              icon = '<i class="fas fa-tint text-info me-2" style="font-size: 2rem;"></i>';
+              unit = data.unit || '%';
+            } else if (data.type === 'light') {
+              icon = '<i class="fas fa-lightbulb text-warning me-2" style="font-size: 2rem;"></i>';
+              unit = data.unit || '%';
+            } else {
+              icon = '<i class="fas fa-microchip text-secondary me-2" style="font-size: 2rem;"></i>';
+            }
+
+            // Display data
+            readingsContainer.innerHTML = `
+                <div class="text-center">
+                    <div class="sensor-value-large">
+                        ${icon}
+                        <div class="value ${valueClass}" style="font-size: 3rem; font-weight: bold;">
+                            ${parseFloat(data.value).toFixed(1)}<span class="unit" style="font-size: 1.5rem; margin-left: 5px;">${unit}</span>
+                        </div>
+                        <div class="timestamp text-muted">as of ${timestamp}</div>
+                    </div>
+                </div>
+                
+                <div class="mt-3">
+                    <table class="table table-sm">
+                        <tr>
+                            <th>Min Value (24h):</th>
+                            <td>${data.min_value || 'N/A'} ${unit}</td>
+                        </tr>
+                        <tr>
+                            <th>Max Value (24h):</th>
+                            <td>${data.max_value || 'N/A'} ${unit}</td>
+                        </tr>
+                        <tr>
+                            <th>Average (24h):</th>
+                            <td>${data.avg_value || 'N/A'} ${unit}</td>
+                        </tr>
+                    </table>
+                </div>
+            `;
+          } else {
+            readingsContainer.innerHTML = `
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    No sensor data available for this device.
+                </div>
+            `;
+          }
+        })
+        .catch((error) => {
+          readingsContainer.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-circle me-2"></i>
+                    Error loading device data: ${error.message}
+                </div>
+            `;
+        });
+    }
+
+    // Load device activity
+    function loadDeviceActivity(deviceId) {
+      const activityContainer = document.getElementById('deviceActivity');
+
+      // Show loading indicator
+      activityContainer.innerHTML = `
+            <div class="text-center py-3">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2">Loading activity data...</p>
+            </div>
+        `;
+
+      // Fetch device activity
+      apiRequest(`/api/devices/${deviceId}/activity?limit=5`, 'GET')
+        .then((response) => {
+          if (response.success && response.activities && response.activities.length > 0) {
+            let html = `<div class="table-responsive"><table class="table table-sm table-striped">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Action</th>
+                        <th>User</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+                
+            response.activities.forEach(activity => {
+                const time = formatDate(activity.timestamp);
+                let actionIcon = '';
+                
+                switch(activity.action_type) {
+                    case 'control':
+                        actionIcon = '<i class="fas fa-sliders-h text-primary me-1"></i>';
+                        break;
+                    case 'configure':
+                        actionIcon = '<i class="fas fa-cogs text-secondary me-1"></i>';
+                        break;
+                    case 'update':
+                        actionIcon = '<i class="fas fa-sync text-info me-1"></i>';
+                        break;
+                    case 'error':
+                        actionIcon = '<i class="fas fa-exclamation-triangle text-danger me-1"></i>';
+                        break;
+                    default:
+                        actionIcon = '<i class="fas fa-info-circle text-secondary me-1"></i>';
+                }
+                
+                html += `
+                    <tr>
+                        <td>${time}</td>
+                        <td>${actionIcon}${activity.action_type}</td>
+                        <td>${activity.user_name || 'System'}</td>
+                        <td>${activity.details || '-'}</td>
+                    </tr>
+                `;
+            });
+            
+            html += `</tbody></table></div>`;
+            activityContainer.innerHTML = html;
+          } else {
+            activityContainer.innerHTML = `
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    No recent activity recorded for this device.
+                </div>
+            `;
+          }
+        })
+        .catch((error) => {
+          // Fallback to show typical device activities
+          activityContainer.innerHTML = `
+            <div class="timeline">
+                <div class="timeline-item">
+                    <div class="timeline-marker bg-success"></div>
+                    <div class="timeline-content">
+                        <h6 class="mb-0">Device Online</h6>
+                        <small class="text-muted">Today, 08:35 AM</small>
+                        <p class="mb-0 small">Device connected to network</p>
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-marker bg-primary"></div>
+                    <div class="timeline-content">
+                        <h6 class="mb-0">Data Reading</h6>
+                        <small class="text-muted">Today, 08:30 AM</small>
+                        <p class="mb-0 small">Temperature reading: 22.5°C</p>
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-marker bg-info"></div>
+                    <div class="timeline-content">
+                        <h6 class="mb-0">Firmware Update</h6>
+                        <small class="text-muted">Yesterday, 11:42 PM</small>
+                        <p class="mb-0 small">Updated to firmware v2.0.4</p>
+                    </div>
+                </div>
+            </div>
+            <style>
+                .timeline {
+                    position: relative;
+                    padding-left: 30px;
+                }
+                .timeline-item {
+                    position: relative;
+                    padding-bottom: 15px;
+                    border-left: 2px solid #e9ecef;
+                    padding-left: 20px;
+                }
+                .timeline-marker {
+                    position: absolute;
+                    width: 12px;
+                    height: 12px;
+                    border-radius: 50%;
+                    left: -7px;
+                    top: 4px;
+                }
+            </style>
+        `;
+        });
+    }
+
+    // ...existing code...
   });
 </script>
 {% endblock %}

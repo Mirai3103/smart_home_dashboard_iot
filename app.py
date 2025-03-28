@@ -3,7 +3,6 @@ import json
 import secrets
 from datetime import datetime, timedelta, timezone
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, send_from_directory
-from flask_socketio import SocketIO
 import logging
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from functools import wraps
@@ -21,11 +20,6 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger('smart_home')
-
-# Initialize SocketIO
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading', 
-                   ping_timeout=5, ping_interval=25, reconnection=True,
-                   reconnection_attempts=5, reconnection_delay=1)
 
 # Import and initialize database
 from models import db, Device, SensorData, UserAction, User, Home, Floor, Room, HomeAccess
@@ -72,17 +66,12 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# Import and initialize MQTT client
-from mqtt_client import MQTTClient
-mqtt_client = MQTTClient()
-
 def init_app():
-    """Initialize database and MQTT client."""
+    """Initialize database."""
     # Create database tables if they don't exist
     with app.app_context():
         db.create_all()
         logger.info("Database tables created successfully")
-        mqtt_client.init_app(app, socketio)
 
 # Disable caching for development
 @app.after_request
@@ -656,7 +645,7 @@ def api_get_sensor_data(sensor_type):
 @app.route('/api/devices/<device_id>/control', methods=['POST'])
 @token_required
 def api_control_device(user, device_id):
-    """Control a device."""
+    """Control a device without MQTT or socketio."""
     data = request.json
     if not data or 'action' not in data:
         return jsonify({
@@ -678,53 +667,48 @@ def api_control_device(user, device_id):
             }), 403
         action = data['action']
         value = data.get('value')
+        
         # Record user action
         user_action_data = {
-            'device_id': device.device_id,  # Changed from device.id to device.device_id
+            'device_id': device.device_id,
             'action': action,
             'value': str(value) if value is not None else None,
             'user_id': user.id
         }
         user_action = UserAction(**user_action_data)
         db.session.add(user_action)
+        
+        # Update device state directly based on the action
+        if action == 'toggle':
+            # Toggle the device state
+            device.state = not device.state
+        elif action == 'on':
+            device.state = True
+        elif action == 'off':
+            device.state = False
+        elif action == 'set':
+            # Set the device value (for dimmers, thermostats, etc.)
+            device.value = value
+            device.state = value > 0 if isinstance(value, (int, float)) else bool(value)
+        
+        # Update device status to reflect the change
+        device.status = 'online'
+        device.last_updated = datetime.utcnow()
+        
+        # Update user action status
+        user_action.status = 'success'
         db.session.commit()
-        # Get the room and floor for the MQTT topic
-        room = device.room
-        floor = room.floor
-        # Publish control message to MQTT
-        topic = f"home/{floor.name}/{room.name}/{device.type}/control"
-        payload = {
-            'action': action,
-            'value': value
-        }
-        try:
-            if mqtt_client and mqtt_client.publish(topic, payload):
-                # Update user action status
-                user_action.status = 'success'
-                db.session.commit()
-                return jsonify({
-                    'success': True,
-                    'message': f'Command sent: {action}',
-                    'action_id': user_action.id
-                })
-            else:
-                # Update user action status
-                user_action.status = 'failed'
-                db.session.commit()
-                logger.error(f"Failed to publish MQTT message to {topic}")
-                return jsonify({
-                    'success': False,
-                    'message': 'Failed to send command: MQTT publish failed'
-                }), 500
-        except Exception as e:
-            # Update user action status
-            user_action.status = 'failed'            
-            db.session.commit()
-            logger.error(f"Exception during MQTT publish: {str(e)}")
-            return jsonify({
-                'success': False,
-                'message': f'Failed to send command: {str(e)}'
-            }), 500
+            
+        return jsonify({
+            'success': True,
+            'message': f'Command processed: {action}',
+            'action_id': user_action.id,
+            'new_state': {
+                'state': device.state,
+                'value': device.value,
+                'status': device.status
+            }
+        })
 
 @app.route('/api/homes', methods=['GET'])
 @token_required
@@ -823,6 +807,15 @@ def validate_token():
         'expires': user.token_expiry.isoformat() if user.token_expiry else None
     })
 
+@app.route('/health')
+def health_check():
+    """Simple endpoint to check if the server is running."""
+    return jsonify({
+        'status': 'ok',
+        'timestamp': datetime.now().isoformat(),
+        'message': 'Server is running'
+    })
+
 def get_floors_with_rooms():
     """Get detailed information about floors and their rooms."""
     floors_data = []
@@ -898,45 +891,62 @@ def user_has_access_to_room(user, room):
         return True
     return False
 
-# Socket.IO events
-@socketio.on('connect')
-def handle_connect():
-    """Handle client connection with authentication."""
-    # Get auth token from request
-    auth = request.args.get('token')
-    
-    # No authentication needed for normal web browser sessions
-    # This prevents reconnection loops on the dashboard
-    if not auth and request.headers.get('User-Agent') and 'Mozilla' in request.headers.get('User-Agent'):
-        logger.info("Browser client connected - skipping token verification")
-        return True
-    
-    # If authentication token is provided, verify it
-    if auth:
-        user = User.query.filter_by(access_token=auth).first()
-        if not user or not user.token_expiry or user.token_expiry < datetime.now(timezone.utc):
-            logger.warning(f"Client connection attempt with invalid token: {auth}")
-            return False  # Reject connection with invalid token
-        
-        logger.info(f"Client authenticated as {user.username}")
-    
-    return True  # Allow connection
-
-@socketio.on('disconnect')
-def handle_disconnect():
-    """Handle client disconnection."""
-    logger.info('Client disconnected')
-
-@socketio.on('ping')
-def handle_ping():
-    """Handle ping from client (custom heartbeat)."""
-    socketio.emit('pong')
-    return True
-
 # Add the missing import at the top of the file
 import random
+
+@app.route('/api/user/devices', methods=['GET'])
+@login_required
+def api_get_user_devices():
+    """Get all devices for the currently logged-in user."""
+    with app.app_context():
+        # Get homes that the user has access to
+        if current_user.is_admin:
+            homes = Home.query.all()
+        else:
+            # Get homes where user is owner or has access through HomeAccess
+            homes = Home.query.filter(
+                (Home.owner_id == current_user.id) | 
+                (Home.id.in_([access.home_id for access in current_user.home_accesses]))
+            ).all()
+        # Get all accessible home IDs
+        home_ids = [home.id for home in homes]
+        # Get all floors in these homes
+        floors = Floor.query.filter(Floor.home_id.in_(home_ids)).all()
+        floor_ids = [floor.id for floor in floors]
+        # Get all rooms in these floors
+        rooms = Room.query.filter(Room.floor_id.in_(floor_ids)).all()
+        room_ids = [room.id for room in rooms]
+        # Get all devices in these rooms
+        devices = Device.query.filter(Device.room_id.in_(room_ids)).all()
+        return jsonify({
+            'success': True,
+            'devices': [device.to_dict() for device in devices]
+        })
+
+# Also add a new API endpoint to get a user's accessible homes
+@app.route('/api/user/homes', methods=['GET'])
+@login_required
+def api_get_user_homes():
+    """Get all homes that the currently logged-in user has access to."""
+    with app.app_context():
+        if current_user.is_admin:
+            homes = Home.query.all()
+        else:
+            homes = Home.query.filter(
+                (Home.owner_id == current_user.id) | 
+                (Home.id.in_([access.home_id for access in current_user.home_accesses]))
+            ).all()
+        return jsonify({
+            'success': True,
+            'homes': [home.to_dict() for home in homes]
+        })
 
 # Run the application
 if __name__ == '__main__':
     init_app()
-    socketio.run(app, debug=app.config['DEBUG'])
+    app.run(
+        host='0.0.0.0',
+        port=5000,
+        debug=app.config.get('DEBUG', True),  # Set to True for debugging
+        use_reloader=app.config.get('USE_RELOADER', True)  # Enable auto-reloading
+    )
