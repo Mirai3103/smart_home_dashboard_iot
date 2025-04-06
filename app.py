@@ -36,7 +36,7 @@ from admin import admin as admin_blueprint
 app.register_blueprint(admin_blueprint)
 
 # Add custom Jinja2 filters
-@app.template_filter('flatten')
+@app.template_filter('flatten') # Flatten a list of lists
 def flatten_filter(items):
     """Flatten a list of lists."""
     flattened = []
@@ -544,29 +544,335 @@ def api_get_device_data(user, device_id):
     """Get sensor data for a device."""
     days = request.args.get('days', 1, type=int)
     limit = request.args.get('limit', 100, type=int)
+    from_date = request.args.get('from')
+    to_date = request.args.get('to')
+    resolution = request.args.get('resolution', 'raw')
+    
     with app.app_context():
         device = Device.query.filter_by(device_id=device_id).first()
-        if not device:
+        if not device and device_id != 'all':
             return jsonify({
                 'success': False,
                 'message': 'Device not found'
             }), 404
-        # Check if user has access to this device
-        if not user_has_access_to_device(user, device):
+        
+        # Base query
+        query = SensorData.query
+        
+        if device_id != 'all':
+            # Check if user has access to this device
+            if not user_has_access_to_device(user, device):
+                return jsonify({
+                    'success': False,
+                    'message': 'Access denied to this device'
+                }), 403
+            query = query.filter_by(device_id=device.device_id)
+        else:
+            # For 'all', get all devices the user has access to
+            accessible_devices = get_user_accessible_devices(user)
+            if not accessible_devices:
+                return jsonify({
+                    'success': True,
+                    'device_id': device_id,
+                    'data': []
+                })
+            query = query.filter(SensorData.device_id.in_([d.device_id for d in accessible_devices]))
+        
+        # Apply date filters
+        if from_date:
+            try:
+                from_datetime = datetime.strptime(from_date, '%Y-%m-%d')
+                query = query.filter(SensorData.timestamp >= from_datetime)
+            except ValueError:
+                pass  # Invalid date format, ignore
+        elif days:
+            # If no from_date, use days
+            since = datetime.utcnow() - timedelta(days=days)
+            query = query.filter(SensorData.timestamp >= since)
+        
+        if to_date:
+            try:
+                # Set to end of the day
+                to_datetime = datetime.strptime(to_date, '%Y-%m-%d')
+                to_datetime = to_datetime.replace(hour=23, minute=59, second=59)
+                query = query.filter(SensorData.timestamp <= to_datetime)
+            except ValueError:
+                pass  # Invalid date format, ignore
+        
+        # Apply resolution (data aggregation)
+        if resolution == 'raw':
+            # Just order and limit the results
+            data = query.order_by(SensorData.timestamp.desc()).limit(limit).all()
+            result = []
+            
+            for item in data:
+                # Get device information
+                device_info = Device.query.filter_by(device_id=item.device_id).first()
+                device_name = device_info.name if device_info else item.device_id
+                device_type = device_info.type if device_info else "unknown"
+                
+                result.append({
+                    'timestamp': item.timestamp.isoformat(),
+                    'device_id': item.device_id,
+                    'device_name': device_name,
+                    'type': device_type,
+                    'value': item.value,
+                    'unit': get_unit_by_type(device_type)
+                })
+            
+            return jsonify({
+                'success': True,
+                'device_id': device_id,
+                'data': result
+            })
+        
+        elif resolution in ['hourly', 'daily']:
+            # Use SQLAlchemy's func for aggregation
+            from sqlalchemy import func
+            
+            # Different time grouping based on resolution
+            if resolution == 'hourly':
+                # Group by year, month, day, hour
+                date_trunc = func.date_format(SensorData.timestamp, '%Y-%m-%d %H:00:00')
+            else:  # daily
+                # Group by year, month, day
+                date_trunc = func.date_format(SensorData.timestamp, '%Y-%m-%d 00:00:00')
+            
+            # For 'all' devices, we need to include device_id in the grouping
+            if device_id == 'all':
+                result = []
+                # We need to query by device type separately to avoid mixing different metrics
+                device_types = db.session.query(Device.type).distinct().all()
+                
+                for device_type in device_types:
+                    type_value = device_type[0]
+                    # Get all devices of this type
+                    devices_of_type = Device.query.filter_by(type=type_value).all()
+                    if not devices_of_type:
+                        continue
+                    
+                    device_ids = [d.device_id for d in devices_of_type]
+                    # Only include devices the user has access to
+                    accessible_ids = [d for d in device_ids if any(ad.device_id == d for ad in accessible_devices)]
+                    if not accessible_ids:
+                        continue
+                    
+                    # For each device of this type
+                    for device_id in accessible_ids:
+                        agg_data = db.session.query(
+                            date_trunc.label('timestamp'),
+                            func.avg(SensorData.value).label('avg_value'),
+                            func.min(SensorData.value).label('min_value'),
+                            func.max(SensorData.value).label('max_value'),
+                            func.count(SensorData.value).label('count')
+                        ).filter(
+                            SensorData.device_id == device_id,
+                            SensorData.timestamp >= (datetime.utcnow() - timedelta(days=days) if not from_date else None),
+                            SensorData.timestamp <= (to_datetime if to_date else None)
+                        ).group_by(date_trunc).order_by(date_trunc.desc()).limit(limit).all()
+                        
+                        device_info = Device.query.filter_by(device_id=device_id).first()
+                        
+                        for item in agg_data:
+                            result.append({
+                                'timestamp': item.timestamp,
+                                'device_id': device_id,
+                                'device_name': device_info.name if device_info else device_id,
+                                'type': type_value,
+                                'value': item.avg_value,
+                                'min': item.min_value,
+                                'max': item.max_value,
+                                'count': item.count,
+                                'unit': get_unit_by_type(type_value)
+                            })
+                
+                # Sort by timestamp
+                result.sort(key=lambda x: x['timestamp'], reverse=True)
+                # Limit total results
+                result = result[:limit]
+                
+                return jsonify({
+                    'success': True,
+                    'device_id': 'all',
+                    'data': result
+                })
+            
+            else:
+                # For a single device, simpler aggregation
+                agg_data = db.session.query(
+                    date_trunc.label('timestamp'),
+                    func.avg(SensorData.value).label('avg_value'),
+                    func.min(SensorData.value).label('min_value'),
+                    func.max(SensorData.value).label('max_value'),
+                    func.count(SensorData.value).label('count')
+                ).filter(
+                    SensorData.device_id == device.device_id
+                ).group_by(date_trunc).order_by(date_trunc.desc()).limit(limit).all()
+                
+                result = []
+                for item in agg_data:
+                    result.append({
+                        'timestamp': item.timestamp,
+                        'device_id': device.device_id,
+                        'device_name': device.name,
+                        'type': device.type,
+                        'value': item.avg_value,
+                        'min': item.min_value,
+                        'max': item.max_value,
+                        'count': item.count,
+                        'unit': get_unit_by_type(device.type)
+                    })
+                
+                return jsonify({
+                    'success': True,
+                    'device_id': device_id,
+                    'data': result
+                })
+        
+        else:
             return jsonify({
                 'success': False,
-                'message': 'Access denied to this device'
-            }), 403
-        # Get sensor data for the specified time range
-        since = datetime.utcnow() - timedelta(days=days)
-        data = SensorData.query.filter_by(device_id=device.device_id)\
-            .filter(SensorData.timestamp >= since)\
-            .order_by(SensorData.timestamp.desc())\
-            .limit(limit).all()
+                'message': f'Unsupported resolution: {resolution}'
+            }), 400
+
+# Add a helper function to get user accessible devices
+def get_user_accessible_devices(user):
+    """Get all devices a user has access to."""
+    if user.is_admin:
+        return Device.query.all()
+    
+    # Get homes that the user has access to
+    homes = Home.query.filter(
+        (Home.owner_id == user.id) | 
+        (Home.id.in_([access.home_id for access in user.home_accesses]))
+    ).all()
+    
+    # Get all accessible home IDs
+    home_ids = [home.id for home in homes]
+    # Get all floors in these homes
+    floors = Floor.query.filter(Floor.home_id.in_(home_ids)).all()
+    floor_ids = [floor.id for floor in floors]
+    # Get all rooms in these floors
+    rooms = Room.query.filter(Room.floor_id.in_(floor_ids)).all()
+    room_ids = [room.id for room in rooms]
+    # Get all devices in these rooms
+    return Device.query.filter(Device.room_id.in_(room_ids)).all()
+
+# Add a helper function to determine unit based on sensor type
+def get_unit_by_type(sensor_type):
+    """Return the appropriate unit for a sensor type."""
+    units = {
+        'temperature': '°C',
+        'humidity': '%',
+        'light': 'lux',
+        'pressure': 'hPa',
+        'air_quality': 'AQI',
+        'co2': 'ppm',
+        'noise': 'dB'
+    }
+    return units.get(sensor_type, '')
+
+@app.route('/api/data/statistics', methods=['GET'])
+@token_required
+def api_get_data_statistics(user):
+    """Get statistics for sensor data."""
+    device_id = request.args.get('device_id')
+    data_type = request.args.get('type')
+    days = request.args.get('days', 7, type=int)
+    from_date = request.args.get('from')
+    to_date = request.args.get('to')
+    
+    with app.app_context():
+        # Base query
+        query = SensorData.query
+        
+        # Filter by device if specified
+        if device_id and device_id != 'all':
+            device = Device.query.filter_by(device_id=device_id).first()
+            if not device:
+                return jsonify({
+                    'success': False,
+                    'message': 'Device not found'
+                }), 404
+                
+            # Check if user has access to this device
+            if not user_has_access_to_device(user, device):
+                return jsonify({
+                    'success': False,
+                    'message': 'Access denied to this device'
+                }), 403
+                
+            query = query.filter_by(device_id=device.device_id)
+        else:
+            # For 'all', get all devices the user has access to
+            accessible_devices = get_user_accessible_devices(user)
+            if not accessible_devices:
+                return jsonify({
+                    'success': True,
+                    'statistics': {
+                        'count': 0,
+                        'min': None,
+                        'max': None,
+                        'avg': None
+                    }
+                })
+            query = query.filter(SensorData.device_id.in_([d.device_id for d in accessible_devices]))
+        
+        # Filter by type if specified
+        if data_type and data_type != 'all':
+            # Find devices of this type
+            devices_of_type = Device.query.filter_by(type=data_type).all()
+            if not devices_of_type:
+                return jsonify({
+                    'success': True,
+                    'statistics': {
+                        'count': 0,
+                        'min': None,
+                        'max': None,
+                        'avg': None
+                    }
+                })
+            
+            query = query.filter(SensorData.device_id.in_([d.device_id for d in devices_of_type]))
+        
+        # Apply date filters
+        if from_date:
+            try:
+                from_datetime = datetime.strptime(from_date, '%Y-%m-%d')
+                query = query.filter(SensorData.timestamp >= from_datetime)
+            except ValueError:
+                pass  # Invalid date format, ignore
+        elif days:
+            # If no from_date, use days
+            since = datetime.utcnow() - timedelta(days=days)
+            query = query.filter(SensorData.timestamp >= since)
+        
+        if to_date:
+            try:
+                # Set to end of the day
+                to_datetime = datetime.strptime(to_date, '%Y-%m-%d')
+                to_datetime = to_datetime.replace(hour=23, minute=59, second=59)
+                query = query.filter(SensorData.timestamp <= to_datetime)
+            except ValueError:
+                pass  # Invalid date format, ignore
+        
+        # Calculate statistics using SQLAlchemy's func
+        from sqlalchemy import func
+        stats = db.session.query(
+            func.count(SensorData.id).label('count'),
+            func.min(SensorData.value).label('min'),
+            func.max(SensorData.value).label('max'),
+            func.avg(SensorData.value).label('avg')
+        ).filter(query.whereclause).first()
+        
         return jsonify({
             'success': True,
-            'device_id': device_id,
-            'data': [item.to_dict() for item in data]
+            'statistics': {
+                'count': stats.count,
+                'min': stats.min,
+                'max': stats.max,
+                'avg': stats.avg
+            }
         })
 
 @app.route('/api/device_data/<sensor_type>', methods=['GET'])
@@ -643,15 +949,49 @@ def api_get_sensor_data(sensor_type):
         })
 
 @app.route('/api/devices/<device_id>/control', methods=['POST'])
-@token_required
-def api_control_device(user, device_id):
-    """Control a device without MQTT or socketio."""
+def api_control_device(device_id):
+    """Control a device without MQTT or socketio. Supports both token and session auth."""
     data = request.json
     if not data or 'action' not in data:
         return jsonify({
             'success': False,
             'message': 'Invalid request. Action required.'
         }), 400
+    
+    # Check authentication - try both token and session auth
+    user = None
+    
+    # First check if user is logged in via Flask-Login session
+    if current_user.is_authenticated:
+        user = current_user
+    else:
+        # If not using session auth, check for token auth
+        token = None
+        # Check if token is in headers
+        if 'Authorization' in request.headers:
+            auth_header = request.headers['Authorization']
+            if auth_header.startswith('Bearer '):
+                token = auth_header[7:]  # Remove 'Bearer ' prefix
+        # Check if token is in query parameters
+        if not token and 'access_token' in request.args:
+            token = request.args.get('access_token')
+        
+        if token:
+            # Find user with this token
+            user = User.query.filter_by(access_token=token).first()
+            if not user or not user.token_expiry or user.token_expiry < datetime.now(timezone.utc):
+                return jsonify({
+                    'success': False,
+                    'message': 'Invalid or expired token'
+                }), 401
+    
+    # If no valid authentication found, return unauthorized
+    if not user:
+        return jsonify({
+            'success': False,
+            'message': 'Authentication required'
+        }), 401
+    
     with app.app_context():
         device = Device.query.filter_by(device_id=device_id).first()
         if not device:
@@ -711,9 +1051,42 @@ def api_control_device(user, device_id):
         })
 
 @app.route('/api/homes', methods=['GET'])
-@token_required
-def api_get_homes(user):
+def api_get_homes():
     """Get all homes and their floors."""
+    # First try to get user from token
+    user = None
+    token = None
+    
+    # Check for token in Authorization header
+    if 'Authorization' in request.headers:
+        auth_header = request.headers['Authorization']
+        if auth_header.startswith('Bearer '):
+            token = auth_header[7:]  # Remove 'Bearer ' prefix
+    
+    # Check for token in query parameters
+    if not token and 'access_token' in request.args:
+        token = request.args.get('access_token')
+        
+    # If token exists, look up the user
+    if token:
+        user = User.query.filter_by(access_token=token).first()
+        if not user or not user.token_expiry or user.token_expiry < datetime.now(timezone.utc):
+            return jsonify({
+                'success': False,
+                'message': 'Invalid or expired token'
+            }), 401
+    
+    # If no valid token user, check if user is logged in via session
+    if not user and current_user.is_authenticated:
+        user = current_user
+    
+    # If still no user, return unauthorized
+    if not user:
+        return jsonify({
+            'success': False,
+            'message': 'Authentication required'
+        }), 401
+        
     with app.app_context():
         # Get homes that the user has access to
         if user.is_admin:
@@ -908,6 +1281,7 @@ def api_get_user_devices():
                 (Home.owner_id == current_user.id) | 
                 (Home.id.in_([access.home_id for access in current_user.home_accesses]))
             ).all()
+            
         # Get all accessible home IDs
         home_ids = [home.id for home in homes]
         # Get all floors in these homes
@@ -918,6 +1292,7 @@ def api_get_user_devices():
         room_ids = [room.id for room in rooms]
         # Get all devices in these rooms
         devices = Device.query.filter(Device.room_id.in_(room_ids)).all()
+        print(f"User {current_user.username} has access to {len(devices)} devices.")
         return jsonify({
             'success': True,
             'devices': [device.to_dict() for device in devices]

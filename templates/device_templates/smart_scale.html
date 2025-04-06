@@ -1,0 +1,76 @@
+<div class="card device-card h-100">
+  <div class="card-header">
+    <div class="d-flex justify-content-between align-items-center">
+      <h6 class="mb-0">
+        <span
+          class="device-status status-{{ device.status }}"
+          data-device-id="{{ device.device_id }}"
+        ></span>
+        {{ device.name }}
+      </h6>
+      <span class="badge bg-info">Smart Scale</span>
+    </div>
+  </div>
+  <div class="card-body d-flex flex-column">
+    <div class="text-center mb-3">
+      <i
+        class="fas fa-weight device-icon"
+        style="color: #6c757d; font-size: 2.5rem"
+        data-device-id="{{ device.device_id }}"
+      ></i>
+    </div>
+
+    <div class="border rounded p-2 text-center mb-3">
+      <small class="d-block text-muted">Last Measurement</small>
+      <span class="h3">{{ device.weight|default('75.5') }} kg</span>
+    </div>
+
+    <div class="row g-2">
+      <div class="col-6">
+        <div class="border rounded p-2 text-center">
+          <small class="d-block text-muted">BMI</small>
+          <span class="h5">{{ device.bmi|default('24.2') }}</span>
+        </div>
+      </div>
+      <div class="col-6">
+        <div class="border rounded p-2 text-center">
+          <small class="d-block text-muted">Body Fat</small>
+          <span class="h5">{{ device.body_fat|default('18') }}%</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-auto">
+      <p class="last-updated mb-0 mt-2">
+        <small
+          >Last update:
+          <span
+            class="last-updated-time"
+            data-device-id="{{ device.device_id }}"
+            data-timestamp="{{ device.last_seen }}"
+          >
+            {{ device.last_seen|default('never', true) }}
+          </span>
+        </small>
+      </p>
+    </div>
+  </div>
+  <div class="card-footer">
+    <div class="d-flex justify-content-between align-items-center">
+      <small
+        class="text-muted device-status-text"
+        data-device-id="{{ device.device_id }}"
+        >{{ device.status }}</small
+      >
+      <div>
+        <button
+          class="btn btn-sm btn-outline-primary device-control-btn"
+          data-device-id="{{ device.device_id }}"
+          data-action="sync"
+        >
+          <i class="fas fa-sync me-1"></i>Sync Data
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

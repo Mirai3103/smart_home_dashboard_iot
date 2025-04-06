@@ -1,0 +1,121 @@
+<div class="card device-card h-100">
+  <div class="card-header">
+    <div class="d-flex justify-content-between align-items-center">
+      <h6 class="mb-0">
+        <span
+          class="device-status status-{{ device.status }}"
+          data-device-id="{{ device.device_id }}"
+        ></span>
+        {{ device.name }}
+      </h6>
+      <span class="badge bg-dark">Speaker</span>
+    </div>
+  </div>
+  <div class="card-body d-flex flex-column">
+    <div class="text-center mb-3">
+      <i
+        class="fas fa-volume-up device-icon"
+        style="color: {% if device.state %}#0d6efd{% else %}#6c757d{% endif %}; font-size: 2.5rem;"
+        data-device-id="{{ device.device_id }}"
+      ></i>
+    </div>
+
+    <div class="device-controls">
+      <div class="form-check form-switch d-flex justify-content-center mb-3">
+        <input
+          class="form-check-input"
+          type="checkbox"
+          id="toggle-{{ device.device_id }}"
+          {%
+          if
+          device.state
+          %}checked{%
+          endif
+          %}
+          data-device-id="{{ device.device_id }}"
+        />
+        <label class="form-check-label ms-2" for="toggle-{{ device.device_id }}"
+          >Power</label
+        >
+      </div>
+
+      <div>
+        <label for="volume-{{ device.id }}" class="form-label">Volume</label>
+        <input
+          type="range"
+          class="form-range device-slider"
+          id="volume-{{ device.id }}"
+          min="0"
+          max="100"
+          step="1"
+          value="{{ device.value|default(50) }}"
+          data-device-id="{{ device.device_id }}"
+          data-action="set_volume"
+          data-value-display="volume-value-{{ device.id }}"
+        />
+        <div class="d-flex justify-content-between">
+          <span>0%</span>
+          <span id="volume-value-{{ device.id }}"
+            >{{ device.value|default(50) }}%</span
+          >
+          <span>100%</span>
+        </div>
+      </div>
+
+      <div class="d-flex justify-content-between mt-3">
+        <button
+          class="btn btn-sm btn-outline-primary device-control-btn"
+          data-device-id="{{ device.device_id }}"
+          data-action="previous"
+        >
+          <i class="fas fa-step-backward"></i>
+        </button>
+        <button
+          class="btn btn-sm btn-outline-primary device-control-btn"
+          data-device-id="{{ device.device_id }}"
+          data-action="play_pause"
+        >
+          <i class="fas fa-play"></i> / <i class="fas fa-pause"></i>
+        </button>
+        <button
+          class="btn btn-sm btn-outline-primary device-control-btn"
+          data-device-id="{{ device.device_id }}"
+          data-action="next"
+        >
+          <i class="fas fa-step-forward"></i>
+        </button>
+      </div>
+    </div>
+
+    <div class="mt-auto">
+      <p class="last-updated mb-0 mt-2">
+        <small
+          >Last update:
+          <span
+            class="last-updated-time"
+            data-device-id="{{ device.device_id }}"
+            data-timestamp="{{ device.last_seen }}"
+          >
+            {{ device.last_seen|default('never', true) }}
+          </span>
+        </small>
+      </p>
+    </div>
+  </div>
+  <div class="card-footer">
+    <div class="d-flex justify-content-between align-items-center">
+      <small
+        class="text-muted device-status-text"
+        data-device-id="{{ device.device_id }}"
+        >{{ device.status }}</small
+      >
+      <button
+        class="btn btn-sm btn-outline-primary device-control-btn"
+        data-device-id="{{ device.device_id }}"
+        data-action="mute_toggle"
+      >
+        <i class="fas fa-volume-mute"></i>
+      </button>
+    </div>
+  </div>
+</div>

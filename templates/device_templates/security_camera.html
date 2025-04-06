@@ -1,0 +1,130 @@
+<div class="card device-card h-100">
+  <div class="card-header">
+    <div class="d-flex justify-content-between align-items-center">
+      <h6 class="mb-0">
+        <span
+          class="device-status status-{{ device.status }}"
+          data-device-id="{{ device.device_id }}"
+        ></span>
+        {{ device.name }}
+      </h6>
+      <span class="badge bg-danger">Camera</span>
+    </div>
+  </div>
+  <div class="card-body d-flex flex-column">
+    <div class="text-center mb-3">
+      <i
+        class="fas fa-video device-icon"
+        style="color: {% if device.state %}#dc3545{% else %}#6c757d{% endif %}; font-size: 2.5rem;"
+        data-device-id="{{ device.device_id }}"
+      ></i>
+    </div>
+
+    <div class="camera-preview text-center mb-3">
+      <div
+        class="camera-placeholder bg-dark rounded"
+        style="
+          height: 120px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        "
+      >
+        {% if device.state %}
+        <span class="text-light">Live Preview</span>
+        <span
+          class="recording-indicator position-absolute"
+          style="top: 5px; right: 5px; color: #dc3545"
+        >
+          <i class="fas fa-circle fa-pulse"></i>
+        </span>
+        {% else %}
+        <span class="text-light">Camera Off</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-center mb-3">
+      <div class="form-check form-switch">
+        <input
+          class="form-check-input"
+          type="checkbox"
+          id="toggle-{{ device.device_id }}"
+          {%
+          if
+          device.state
+          %}checked{%
+          endif
+          %}
+          data-device-id="{{ device.device_id }}"
+        />
+        <label class="form-check-label" for="toggle-{{ device.device_id }}">
+          Camera Active
+        </label>
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-center mb-3">
+      <div class="btn-group btn-group-sm">
+        <button
+          class="btn btn-outline-primary device-control-btn"
+          data-device-id="{{ device.device_id }}"
+          data-action="snapshot"
+        >
+          <i class="fas fa-camera me-1"></i>Snapshot
+        </button>
+        <button
+          class="btn btn-outline-danger device-control-btn"
+          data-device-id="{{ device.device_id }}"
+          data-action="record"
+        >
+          <i class="fas fa-record-vinyl me-1"></i>Record
+        </button>
+      </div>
+    </div>
+
+    <div class="mt-auto">
+      <div class="d-flex justify-content-between align-items-center mt-3">
+        <small class="text-muted"
+          >Motion Detection:
+          <span
+            class="{% if device.motion_detection %}text-success{% else %}text-secondary{% endif %}"
+          >
+            {{ 'Enabled' if device.motion_detection else 'Disabled' }}
+          </span>
+        </small>
+        <small class="text-muted"
+          >Quality: {{ device.quality|default('HD') }}
+        </small>
+      </div>
+      <p class="last-updated mb-0 mt-2">
+        <small
+          >Last update:
+          <span
+            class="last-updated-time"
+            data-device-id="{{ device.device_id }}"
+            data-timestamp="{{ device.last_seen }}"
+          >
+            {{ device.last_seen|default('never', true) }}
+          </span>
+        </small>
+      </p>
+    </div>
+  </div>
+  <div class="card-footer">
+    <div class="d-flex justify-content-between align-items-center">
+      <small
+        class="text-muted device-status-text"
+        data-device-id="{{ device.device_id }}"
+        >{{ device.status }}</small
+      >
+      <button
+        class="btn btn-sm btn-outline-primary refresh-button"
+        data-refresh-target="device-{{ device.id }}"
+        data-refresh-url="/api/devices/{{ device.device_id }}/data?limit=1"
+      >
+        <i class="fas fa-sync-alt"></i>
+      </button>
+    </div>
+  </div>
+</div>

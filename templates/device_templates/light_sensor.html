@@ -1,0 +1,84 @@
+<div class="card device-card h-100">
+  <div class="card-header">
+    <div class="d-flex justify-content-between align-items-center">
+      <h6 class="mb-0">
+        <span
+          class="device-status status-{{ device.status }}"
+          data-device-id="{{ device.device_id }}"
+        ></span>
+        {{ device.name }}
+      </h6>
+      <span class="badge bg-warning text-dark">Light Sensor</span>
+    </div>
+  </div>
+  <div class="card-body d-flex flex-column">
+    <div class="text-center mb-3">
+      <i
+        class="fas fa-sun device-icon"
+        style="color: #ffc107; font-size: 2.5rem"
+        data-device-id="{{ device.device_id }}"
+      ></i>
+    </div>
+
+    <div class="text-center">
+      <div class="value-display" data-device-id="{{ device.device_id }}">
+        {% if device.latest_value %} {{ device.latest_value|round(1) }} {% else
+        %} -- {% endif %}
+      </div>
+      <div class="value-unit">lux</div>
+    </div>
+
+    <div class="progress mt-3 mb-2">
+      <div
+        class="progress-bar bg-warning"
+        role="progressbar"
+        style="width: {{ device.light_percentage|default(50) }}%;"
+        aria-valuenow="{{ device.light_percentage|default(50) }}"
+        aria-valuemin="0"
+        aria-valuemax="100"
+      ></div>
+    </div>
+
+    <div class="d-flex justify-content-between mb-3">
+      <small class="text-muted">Dark</small>
+      <small class="text-muted">Bright</small>
+    </div>
+
+    <div
+      class="alert alert-{% if device.light_level == 'high' %}warning{% elif device.light_level == 'medium' %}info{% else %}secondary{% endif %} text-center"
+    >
+      Light Level: {{ device.light_level|default('Medium')|title }}
+    </div>
+
+    <div class="mt-auto">
+      <p class="last-updated mb-0 mt-2">
+        <small
+          >Last update:
+          <span
+            class="last-updated-time"
+            data-device-id="{{ device.device_id }}"
+            data-timestamp="{{ device.last_seen }}"
+          >
+            {{ device.last_seen|default('never', true) }}
+          </span>
+        </small>
+      </p>
+    </div>
+  </div>
+  <div class="card-footer">
+    <div class="d-flex justify-content-between align-items-center">
+      <small
+        class="text-muted device-status-text"
+        data-device-id="{{ device.device_id }}"
+        >{{ device.status }}</small
+      >
+      <button
+        class="btn btn-sm btn-outline-primary refresh-button"
+        data-refresh-target="device-{{ device.id }}"
+        data-refresh-url="/api/devices/{{ device.device_id }}/data?limit=1"
+      >
+        <i class="fas fa-sync-alt"></i>
+      </button>
+    </div>
+  </div>
+</div>

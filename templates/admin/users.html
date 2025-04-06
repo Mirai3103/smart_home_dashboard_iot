@@ -39,7 +39,12 @@ endblock %} {% block admin_content %}
               <span class="badge badge-secondary">No</span>
               {% endif %}
             </td>
-            <td>{{ user.created_at.strftime('%Y-%m-%d') }}</td>
+            <td>
+              {% if user.created_at %} {{ user.created_at.strftime('%Y-%m-%d')
+              }} {% else %}
+              <span class="text-muted">Not set</span>
+              {% endif %}
+            </td>
             <td>
               <button
                 class="btn btn-sm btn-info edit-user"

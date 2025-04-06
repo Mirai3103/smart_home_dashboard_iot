@@ -115,18 +115,24 @@ def assign_roles_to_users(users, roles):
     db.session.commit()
 
 def create_homes(users, count=5):
-    """Create homes for users"""
-    print(f"Creating {count} homes...")
+    """Create homes for users - one home per user"""
+    # Exclude admin (first user) and ensure count doesn't exceed available users
+    available_users = users[1:]
+    if count > len(available_users):
+        count = len(available_users)
+        print(f"Warning: Adjusted home count to {count} to match available users")
+    
+    print(f"Creating {count} homes (one per user)...")
     homes = []
     
-    for i in range(count):
-        # Select random user as owner (excluding admin)
-        owner = random.choice(users[1:])
-        
+    # Select users without replacement - each user gets exactly one home
+    selected_users = random.sample(available_users, count)
+    
+    for user in selected_users:
         home = Home(
             name=fake.word().capitalize() + " " + random.choice(["House", "Home", "Residence", "Place"]),
             address=fake.address().replace("\n", ", "),
-            owner_id=owner.id,
+            owner_id=user.id,
             created_at=fake.date_time_between(start_date='-2y', end_date='-1m')
         )
         homes.append(home)

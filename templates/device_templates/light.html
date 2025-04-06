@@ -1,0 +1,91 @@
+<div class="card device-card device-light h-100">
+  <div class="card-header">
+    <div class="d-flex justify-content-between align-items-center">
+      <h6 class="mb-0">
+        <span
+          class="device-status status-{{ device.status }}"
+          data-device-id="{{ device.device_id }}"
+        ></span>
+        {{ device.name }}
+      </h6>
+      <span class="badge bg-warning text-dark">Light</span>
+    </div>
+  </div>
+  <div class="card-body d-flex flex-column">
+    <div class="text-center mb-3">
+      <i
+        class="fas fa-lightbulb device-icon light-bulb"
+        data-device-id="{{ device.device_id }}"
+      ></i>
+    </div>
+
+    <div class="device-detail-controls">
+      <label class="device-toggle">
+        <input type="checkbox" data-device-id="{{ device.device_id }}" />
+        <span class="device-toggle-slider"></span>
+      </label>
+      <div class="mt-3">
+        <label for="brightness-{{ device.id }}" class="form-label"
+          >Brightness</label
+        >
+        <input
+          type="range"
+          class="form-range range-control"
+          id="brightness-{{ device.id }}"
+          min="0"
+          max="100"
+          step="1"
+          value="50"
+          data-device-id="{{ device.device_id }}"
+          data-action="set_brightness"
+          data-value-display="brightness-value-{{ device.id }}"
+        />
+        <div class="d-flex justify-content-between">
+          <span>0%</span>
+          <span id="brightness-value-{{ device.id }}">50</span>
+          <span>100%</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-auto">
+      <p class="last-updated mb-0 mt-2">
+        <small
+          >Last update:
+          <span
+            class="last-updated-time"
+            data-device-id="{{ device.device_id }}"
+            data-timestamp="{{ device.last_seen }}"
+          >
+            {{ device.last_seen|default('never', true) }}
+          </span>
+        </small>
+      </p>
+    </div>
+  </div>
+  <div class="card-footer">
+    <div class="d-flex justify-content-between align-items-center">
+      <small
+        class="text-muted device-status-text"
+        data-device-id="{{ device.device_id }}"
+        >{{ device.status }}</small
+      >
+      <div>
+        <button
+          class="btn btn-sm btn-outline-warning me-1 device-control-btn"
+          data-device-id="{{ device.device_id }}"
+          data-action="color_warm"
+        >
+          <i class="fas fa-sun"></i>
+        </button>
+        <button
+          class="btn btn-sm btn-outline-primary device-control-btn"
+          data-device-id="{{ device.device_id }}"
+          data-action="color_cool"
+        >
+          <i class="fas fa-moon"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

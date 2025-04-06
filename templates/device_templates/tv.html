@@ -1,0 +1,112 @@
+<div class="card device-card h-100">
+  <div class="card-header">
+    <div class="d-flex justify-content-between align-items-center">
+      <h6 class="mb-0">
+        <span
+          class="device-status status-{{ device.status }}"
+          data-device-id="{{ device.device_id }}"
+        ></span>
+        {{ device.name }}
+      </h6>
+      <span class="badge bg-dark">TV</span>
+    </div>
+  </div>
+  <div class="card-body d-flex flex-column">
+    <div class="text-center mb-3">
+      <i
+        class="fas fa-tv device-icon"
+        style="color: {% if device.state %}#0dcaf0{% else %}#6c757d{% endif %}; font-size: 2.5rem;"
+        data-device-id="{{ device.device_id }}"
+      ></i>
+    </div>
+
+    <div class="device-controls">
+      <div class="form-check form-switch d-flex justify-content-center mb-3">
+        <input
+          class="form-check-input"
+          type="checkbox"
+          id="toggle-{{ device.device_id }}"
+          {%
+          if
+          device.state
+          %}checked{%
+          endif
+          %}
+          data-device-id="{{ device.device_id }}"
+        />
+        <label class="form-check-label ms-2" for="toggle-{{ device.device_id }}"
+          >Power</label
+        >
+      </div>
+
+      <div class="d-flex justify-content-center mb-3">
+        <div class="btn-group">
+          <button
+            class="btn btn-sm btn-outline-primary device-control-btn"
+            data-device-id="{{ device.device_id }}"
+            data-action="volume_down"
+          >
+            <i class="fas fa-volume-down"></i>
+          </button>
+          <button
+            class="btn btn-sm btn-outline-primary device-control-btn"
+            data-device-id="{{ device.device_id }}"
+            data-action="volume_up"
+          >
+            <i class="fas fa-volume-up"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="d-flex justify-content-center">
+        <div class="btn-group">
+          <button
+            class="btn btn-sm btn-outline-primary device-control-btn"
+            data-device-id="{{ device.device_id }}"
+            data-action="channel_down"
+          >
+            <i class="fas fa-chevron-left"></i>
+          </button>
+          <button
+            class="btn btn-sm btn-outline-primary device-control-btn"
+            data-device-id="{{ device.device_id }}"
+            data-action="channel_up"
+          >
+            <i class="fas fa-chevron-right"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-auto">
+      <p class="last-updated mb-0 mt-2">
+        <small
+          >Last update:
+          <span
+            class="last-updated-time"
+            data-device-id="{{ device.device_id }}"
+            data-timestamp="{{ device.last_seen }}"
+          >
+            {{ device.last_seen|default('never', true) }}
+          </span>
+        </small>
+      </p>
+    </div>
+  </div>
+  <div class="card-footer">
+    <div class="d-flex justify-content-between align-items-center">
+      <small
+        class="text-muted device-status-text"
+        data-device-id="{{ device.device_id }}"
+        >{{ device.status }}</small
+      >
+      <button
+        class="btn btn-sm btn-outline-primary device-control-btn"
+        data-device-id="{{ device.device_id }}"
+        data-action="source"
+      >
+        <i class="fas fa-exchange-alt"></i>
+      </button>
+    </div>
+  </div>
+</div>

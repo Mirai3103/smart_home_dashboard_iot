@@ -1,0 +1,118 @@
+<div class="card device-card h-100">
+  <div class="card-header">
+    <div class="d-flex justify-content-between align-items-center">
+      <h6 class="mb-0">
+        <span
+          class="device-status status-{{ device.status }}"
+          data-device-id="{{ device.device_id }}"
+        ></span>
+        {{ device.name }}
+      </h6>
+      <span class="badge bg-danger">Smoke Detector</span>
+    </div>
+  </div>
+  <div class="card-body d-flex flex-column">
+    <div class="text-center mb-3">
+      <i
+        class="fas fa-smoking-ban device-icon"
+        data-device-id="{{ device.device_id }}"
+      ></i>
+    </div>
+    <div class="text-center">
+      <div class="smoke-status" data-device-id="{{ device.device_id }}">
+        Normal
+      </div>
+      <div class="battery-level mt-2">
+        <small
+          >Battery:
+          <span
+            class="battery-percentage"
+            data-device-id="{{ device.device_id }}"
+            >--</span
+          >%</small
+        >
+        <div class="progress" style="height: 5px">
+          <div
+            class="progress-bar bg-success"
+            role="progressbar"
+            style="width: 0%"
+            data-device-id="{{ device.device_id }}"
+            aria-valuenow="0"
+            aria-valuemin="0"
+            aria-valuemax="100"
+          ></div>
+        </div>
+      </div>
+    </div>
+    <div class="mt-3 text-center">
+      <button
+        class="btn btn-sm btn-outline-primary device-action-btn"
+        data-device-id="{{ device.device_id }}"
+        data-action="test_alarm"
+      >
+        <i class="fas fa-bell me-1"></i>Test Alarm
+      </button>
+    </div>
+    <div
+      class="alert alert-{% if device.state %}danger{% else %}success{% endif %} text-center"
+    >
+      {% if device.state %}
+      <i class="fas fa-exclamation-triangle me-2"></i> Smoke Detected! {% else
+      %} <i class="fas fa-check-circle me-2"></i> No Smoke Detected {% endif %}
+    </div>
+
+    <div class="device-controls mt-2">
+      <div class="d-grid">
+        <button
+          class="btn btn-outline-secondary btn-sm device-control-btn"
+          data-device-id="{{ device.device_id }}"
+          data-action="test"
+        >
+          <i class="fas fa-bell me-1"></i> Test Alarm
+        </button>
+      </div>
+    </div>
+
+    <div class="mt-auto">
+      <div class="d-flex justify-content-between align-items-center mt-3">
+        <small class="text-muted"
+          >Battery:
+          <span class="{% if device.battery < 20 %}text-danger{% endif %}">
+            {{ device.battery|default(100) }}%
+          </span>
+        </small>
+        <small class="text-muted"
+          >Sensitivity: {{ device.sensitivity|default('Medium') }}
+        </small>
+      </div>
+      <p class="last-updated mb-0 mt-2">
+        <small
+          >Last update:
+          <span
+            class="last-updated-time"
+            data-device-id="{{ device.device_id }}"
+            data-timestamp="{{ device.last_seen }}"
+          >
+            {{ device.last_seen|default('never', true) }}
+          </span>
+        </small>
+      </p>
+    </div>
+  </div>
+  <div class="card-footer">
+    <div class="d-flex justify-content-between align-items-center">
+      <small
+        class="text-muted device-status-text"
+        data-device-id="{{ device.device_id }}"
+        >{{ device.status }}</small
+      >
+      <button
+        class="btn btn-sm btn-outline-primary refresh-button"
+        data-refresh-target="device-{{ device.id }}"
+        data-refresh-url="/api/devices/{{ device.device_id }}/data?limit=1"
+      >
+        <i class="fas fa-sync-alt"></i>
+      </button>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,78 @@
+<div class="card device-card h-100">
+  <div class="card-header">
+    <div class="d-flex justify-content-between align-items-center">
+      <h6 class="mb-0">
+        <span
+          class="device-status status-{{ device.status }}"
+          data-device-id="{{ device.device_id }}"
+        ></span>
+        {{ device.name }}
+      </h6>
+      <span class="badge bg-secondary">Garage Door</span>
+    </div>
+  </div>
+  <div class="card-body d-flex flex-column">
+    <div class="text-center mb-3">
+      <i
+        class="fas fa-warehouse device-icon"
+        style="color: #6c757d; font-size: 2.5rem"
+        data-device-id="{{ device.device_id }}"
+      ></i>
+    </div>
+
+    <div
+      class="alert alert-{% if device.state %}success{% else %}secondary{% endif %} text-center"
+    >
+      <strong>Door Status: {{ 'Open' if device.state else 'Closed' }}</strong>
+    </div>
+
+    <div class="d-grid gap-2 mb-3">
+      <button
+        class="btn {% if device.state %}btn-outline-danger{% else %}btn-outline-success{% endif %} device-control-btn"
+        data-device-id="{{ device.device_id }}"
+        data-action="toggle"
+      >
+        <i
+          class="fas {% if device.state %}fa-door-closed{% else %}fa-door-open{% endif %} me-1"
+        ></i>
+        {{ 'Close Door' if device.state else 'Open Door' }}
+      </button>
+    </div>
+
+    <div class="mt-auto">
+      <div class="d-flex justify-content-between align-items-center mt-3">
+        <small class="text-muted"
+          >Last operated: {{ device.last_operated|default('Never') }}
+        </small>
+      </div>
+      <p class="last-updated mb-0 mt-2">
+        <small
+          >Last update:
+          <span
+            class="last-updated-time"
+            data-device-id="{{ device.device_id }}"
+            data-timestamp="{{ device.last_seen }}"
+          >
+            {{ device.last_seen|default('never', true) }}
+          </span>
+        </small>
+      </p>
+    </div>
+  </div>
+  <div class="card-footer">
+    <div class="d-flex justify-content-between align-items-center">
+      <small
+        class="text-muted device-status-text"
+        data-device-id="{{ device.device_id }}"
+        >{{ device.status }}</small
+      >
+      <button
+        class="btn btn-sm btn-outline-primary refresh-button"
+        data-refresh-target="device-{{ device.id }}"
+        data-refresh-url="/api/devices/{{ device.device_id }}/data?limit=1"
+      >
+        <i class="fas fa-sync-alt"></i>
+      </button>
+    </div>
+  </div>
+</div>

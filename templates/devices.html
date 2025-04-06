@@ -5,6 +5,176 @@ endblock %} {% block content %}
     <h1><i class="fas fa-microchip me-2"></i>Devices</h1>
     <p class="text-muted">Manage your connected devices</p>
   </div>
+  <div class="col-md-6">
+    <div class="d-flex justify-content-end">
+      <div class="me-2">
+        <label for="floorFilter" class="form-label">Filter by Floor:</label>
+        <select id="floorFilter" class="form-select">
+          <option value="all" selected>All Floors</option>
+          <option value="ground">Ground Floor</option>
+          <option value="first">First Floor</option>
+          <option value="second">Second Floor</option>
+          <option value="basement">Basement</option>
+        </select>
+      </div>
+      <div>
+        <label for="locationFilter" class="form-label"
+          >Filter by Location:</label
+        >
+        <select id="locationFilter" class="form-select">
+          <option value="all" selected>All Locations</option>
+          <option value="living_room">Living Room</option>
+          <option value="bedroom">Bedroom</option>
+          <option value="kitchen">Kitchen</option>
+          <option value="bathroom">Bathroom</option>
+          <option value="garden">Garden</option>
+          <option value="garage">Garage</option>
+        </select>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Floor-based Device View -->
+<div class="mb-4">
+  <ul class="nav nav-tabs" id="floorTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button
+        class="nav-link active"
+        id="all-floors-tab"
+        data-bs-toggle="tab"
+        data-bs-target="#all-floors"
+        type="button"
+        role="tab"
+        aria-controls="all-floors"
+        aria-selected="true"
+      >
+        All Floors
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button
+        class="nav-link"
+        id="ground-floor-tab"
+        data-bs-toggle="tab"
+        data-bs-target="#ground-floor"
+        type="button"
+        role="tab"
+        aria-controls="ground-floor"
+        aria-selected="false"
+      >
+        Ground Floor
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button
+        class="nav-link"
+        id="first-floor-tab"
+        data-bs-toggle="tab"
+        data-bs-target="#first-floor"
+        type="button"
+        role="tab"
+        aria-controls="first-floor"
+        aria-selected="false"
+      >
+        First Floor
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button
+        class="nav-link"
+        id="second-floor-tab"
+        data-bs-toggle="tab"
+        data-bs-target="#second-floor"
+        type="button"
+        role="tab"
+        aria-controls="second-floor"
+        aria-selected="false"
+      >
+        Second Floor
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button
+        class="nav-link"
+        id="basement-tab"
+        data-bs-toggle="tab"
+        data-bs-target="#basement"
+        type="button"
+        role="tab"
+        aria-controls="basement"
+        aria-selected="false"
+      >
+        Basement
+      </button>
+    </li>
+  </ul>
+  <div
+    class="tab-content p-3 border border-top-0 rounded-bottom"
+    id="floorTabsContent"
+  >
+    <div
+      class="tab-pane fade show active"
+      id="all-floors"
+      role="tabpanel"
+      aria-labelledby="all-floors-tab"
+    >
+      <div class="row" id="devices-all">
+        {% for device in devices %} {% if device.owner == current_user or
+        device.shared_with_me %}
+        <div
+          class="col-md-4 mb-4 device-card-container"
+          data-floor="{{ device.floor|default('ground') }}"
+          data-location="{{ device.location }}"
+        >
+          <div id="device-{{ device.id }}">
+            {% include 'device_templates/' + device.type + '.html' %}
+          </div>
+        </div>
+        {% endif %} {% endfor %}
+      </div>
+    </div>
+    <div
+      class="tab-pane fade"
+      id="ground-floor"
+      role="tabpanel"
+      aria-labelledby="ground-floor-tab"
+    >
+      <div class="row" id="devices-ground">
+        <!-- Ground floor devices will be populated via JavaScript -->
+      </div>
+    </div>
+    <div
+      class="tab-pane fade"
+      id="first-floor"
+      role="tabpanel"
+      aria-labelledby="first-floor-tab"
+    >
+      <div class="row" id="devices-first">
+        <!-- First floor devices will be populated via JavaScript -->
+      </div>
+    </div>
+    <div
+      class="tab-pane fade"
+      id="second-floor"
+      role="tabpanel"
+      aria-labelledby="second-floor-tab"
+    >
+      <div class="row" id="devices-second">
+        <!-- Second floor devices will be populated via JavaScript -->
+      </div>
+    </div>
+    <div
+      class="tab-pane fade"
+      id="basement"
+      role="tabpanel"
+      aria-labelledby="basement-tab"
+    >
+      <div class="row" id="devices-basement">
+        <!-- Basement devices will be populated via JavaScript -->
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- Devices Table -->
@@ -12,7 +182,7 @@ endblock %} {% block content %}
   <div class="card-body">
     <h5 class="mb-3">My Devices</h5>
     <div class="table-responsive">
-      <table class="table table-striped table-hover">
+      <table class="table table-striped table-hover" id="devicesTable">
         <thead>
           <tr>
             <th scope="col">Status</th>
@@ -20,6 +190,7 @@ endblock %} {% block content %}
             <th scope="col">Device ID</th>
             <th scope="col">Type</th>
             <th scope="col">Location</th>
+            <th scope="col">Floor</th>
             <th scope="col">Owner</th>
             <th scope="col">Last Seen</th>
             <th scope="col">Actions</th>
@@ -28,7 +199,10 @@ endblock %} {% block content %}
         <tbody>
           {% for device in devices %} {% if device.owner == current_user or
           device.shared_with_me %}
-          <tr>
+          <tr
+            data-floor="{{ device.floor|default('ground') }}"
+            data-location="{{ device.location }}"
+          >
             <td>
               <span
                 class="device-status status-{{ device.status }}"
@@ -80,6 +254,11 @@ endblock %} {% block content %}
               {% endif %}
             </td>
             <td>
+              <span class="badge bg-dark"
+                >{{ device.floor|default('Ground')|title }} Floor</span
+              >
+            </td>
+            <td>
               {% if device.owner == current_user %}
               <span class="badge bg-success"
                 ><i class="fas fa-user me-1"></i> You</span
@@ -114,17 +293,6 @@ endblock %} {% block content %}
                 >
                   <i class="fas fa-info-circle"></i>
                 </button>
-                {% if device.owner == current_user %}
-                <button
-                  type="button"
-                  class="btn btn-outline-secondary"
-                  data-bs-toggle="modal"
-                  data-bs-target="#shareDeviceModal"
-                  data-device-id="{{ device.device_id }}"
-                >
-                  <i class="fas fa-share-alt"></i>
-                </button>
-                {% endif %}
               </div>
             </td>
           </tr>
@@ -173,189 +341,6 @@ endblock %} {% block content %}
   </div>
 </div>
 
-<!-- Add Device Modal -->
-<div
-  class="modal fade"
-  id="addDeviceModal"
-  tabindex="-1"
-  aria-labelledby="addDeviceModalLabel"
-  aria-hidden="true"
->
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="addDeviceModalLabel">
-          <i class="fas fa-plus-circle me-2"></i>Add New Device
-        </h5>
-        <button
-          type="button"
-          class="btn-close"
-          data-bs-dismiss="modal"
-          aria-label="Close"
-        ></button>
-      </div>
-      <div class="modal-body">
-        <form id="addDeviceForm">
-          <div class="mb-3">
-            <label for="deviceId" class="form-label">Device ID</label>
-            <input type="text" class="form-control" id="deviceId" required />
-            <div class="form-text">A unique identifier for the device</div>
-          </div>
-          <div class="mb-3">
-            <label for="deviceName" class="form-label">Name</label>
-            <input type="text" class="form-control" id="deviceName" required />
-          </div>
-          <div class="mb-3">
-            <label for="deviceType" class="form-label">Type</label>
-            <select class="form-select" id="deviceType" required>
-              <option value="" selected disabled>Select device type</option>
-              <option value="temperature">Temperature Sensor</option>
-              <option value="humidity">Humidity Sensor</option>
-              <option value="light">Light</option>
-              <option value="switch">Switch</option>
-              <option value="motion">Motion Sensor</option>
-            </select>
-          </div>
-          <div class="mb-3">
-            <label for="deviceLocation" class="form-label">Location</label>
-            <select class="form-select" id="deviceLocation" required>
-              <option value="" selected disabled>Select location</option>
-              <option value="living_room">Living Room</option>
-              <option value="bedroom">Bedroom</option>
-              <option value="kitchen">Kitchen</option>
-              <option value="bathroom">Bathroom</option>
-              <option value="hallway">Hallway</option>
-            </select>
-          </div>
-        </form>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-          Cancel
-        </button>
-        <button type="button" class="btn btn-primary" id="saveNewDevice">
-          Add Device
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Edit Device Modal -->
-<div
-  class="modal fade"
-  id="editDeviceModal"
-  tabindex="-1"
-  aria-labelledby="editDeviceModalLabel"
-  aria-hidden="true"
->
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="editDeviceModalLabel">
-          <i class="fas fa-edit me-2"></i>Edit Device
-        </h5>
-        <button
-          type="button"
-          class="btn-close"
-          data-bs-dismiss="modal"
-          aria-label="Close"
-        ></button>
-      </div>
-      <div class="modal-body">
-        <form id="editDeviceForm">
-          <input type="hidden" id="editDeviceId" />
-          <div class="mb-3">
-            <label for="editDeviceName" class="form-label">Name</label>
-            <input
-              type="text"
-              class="form-control"
-              id="editDeviceName"
-              required
-            />
-          </div>
-          <div class="mb-3 form-check form-switch">
-            <input
-              class="form-check-input"
-              type="checkbox"
-              id="editDeviceActive"
-            />
-            <label class="form-check-label" for="editDeviceActive"
-              >Device Active</label
-            >
-          </div>
-          <div class="mb-3">
-            <label for="editDeviceLocation" class="form-label">Location</label>
-            <select class="form-select" id="editDeviceLocation" required>
-              <option value="" disabled>Select location</option>
-              <option value="living_room">Living Room</option>
-              <option value="bedroom">Bedroom</option>
-              <option value="kitchen">Kitchen</option>
-              <option value="bathroom">Bathroom</option>
-              <option value="hallway">Hallway</option>
-            </select>
-          </div>
-        </form>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-          Cancel
-        </button>
-        <button type="button" class="btn btn-primary" id="updateDevice">
-          Save Changes
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Delete Device Modal -->
-<div
-  class="modal fade"
-  id="deleteDeviceModal"
-  tabindex="-1"
-  aria-labelledby="deleteDeviceModalLabel"
-  aria-hidden="true"
->
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="deleteDeviceModalLabel">
-          <i class="fas fa-trash-alt me-2"></i>Delete Device
-        </h5>
-        <button
-          type="button"
-          class="btn-close"
-          data-bs-dismiss="modal"
-          aria-label="Close"
-        ></button>
-      </div>
-      <div class="modal-body">
-        <p>
-          Are you sure you want to delete this device? This action cannot be
-          undone.
-        </p>
-        <div class="alert alert-warning">
-          <i class="fas fa-exclamation-triangle me-2"></i>
-          All historical data associated with this device will also be deleted.
-        </div>
-        <div class="device-info mt-3">
-          <p><strong>Device:</strong> <span id="deleteDeviceName">--</span></p>
-          <p><strong>ID:</strong> <code id="deleteDeviceId">--</code></p>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-          Cancel
-        </button>
-        <button type="button" class="btn btn-danger" id="confirmDeleteDevice">
-          Delete Device
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
-
 <!-- Device Details Modal -->
 <div
   class="modal fade"
@@ -380,154 +365,141 @@ endblock %} {% block content %}
       <div class="modal-body">
         <div class="row">
           <div class="col-md-6">
-            <h6>Basic Information</h6>
-            <table class="table table-sm">
-              <tr>
-                <th>Device ID:</th>
-                <td><code id="detailDeviceId">--</code></td>
-              </tr>
-              <tr>
-                <th>Name:</th>
-                <td id="detailDeviceName">--</td>
-              </tr>
-              <tr>
-                <th>Type:</th>
-                <td id="detailDeviceType">--</td>
-              </tr>
-              <tr>
-                <th>Location:</th>
-                <td id="detailDeviceLocation">--</td>
-              </tr>
-              <tr>
-                <th>Status:</th>
-                <td id="detailDeviceStatus">--</td>
-              </tr>
-              <tr>
-                <th>Last Seen:</th>
-                <td id="detailDeviceLastSeen">--</td>
-              </tr>
-              <tr>
-                <th>Firmware:</th>
-                <td id="detailDeviceFirmware">--</td>
-              </tr>
-              <tr>
-                <th>MAC Address:</th>
-                <td id="detailDeviceMac">--</td>
-              </tr>
-              <tr>
-                <th>IP Address:</th>
-                <td id="detailDeviceIp">--</td>
-              </tr>
-            </table>
+            <div class="card mb-3">
+              <div class="card-header bg-light">
+                <h6 class="mb-0">
+                  <i class="fas fa-microchip me-2"></i>Basic Information
+                </h6>
+              </div>
+              <div class="card-body">
+                <table class="table table-sm">
+                  <tr>
+                    <th>
+                      <i class="fas fa-fingerprint text-secondary me-1"></i
+                      >Device ID:
+                    </th>
+                    <td><code id="detailDeviceId">--</code></td>
+                  </tr>
+                  <tr>
+                    <th><i class="fas fa-tag text-secondary me-1"></i>Name:</th>
+                    <td id="detailDeviceName">--</td>
+                  </tr>
+                  <tr>
+                    <th>
+                      <i class="fas fa-sitemap text-secondary me-1"></i>Type:
+                    </th>
+                    <td id="detailDeviceType">--</td>
+                  </tr>
+                  <tr>
+                    <th>
+                      <i class="fas fa-map-marker-alt text-secondary me-1"></i
+                      >Location:
+                    </th>
+                    <td id="detailDeviceLocation">--</td>
+                  </tr>
+                  <tr>
+                    <th>
+                      <i class="fas fa-wifi text-secondary me-1"></i>Status:
+                    </th>
+                    <td id="detailDeviceStatus">--</td>
+                  </tr>
+                  <tr>
+                    <th>
+                      <i class="fas fa-clock text-secondary me-1"></i>Last Seen:
+                    </th>
+                    <td id="detailDeviceLastSeen">--</td>
+                  </tr>
+                </table>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-header bg-light">
+                <h6 class="mb-0">
+                  <i class="fas fa-cogs me-2"></i>Technical Details
+                </h6>
+              </div>
+              <div class="card-body">
+                <table class="table table-sm">
+                  <tr>
+                    <th>
+                      <i class="fas fa-code-branch text-secondary me-1"></i
+                      >Firmware:
+                    </th>
+                    <td id="detailDeviceFirmware">--</td>
+                  </tr>
+                  <tr>
+                    <th>
+                      <i class="fas fa-network-wired text-secondary me-1"></i
+                      >MAC Address:
+                    </th>
+                    <td id="detailDeviceMac">--</td>
+                  </tr>
+                  <tr>
+                    <th>
+                      <i class="fas fa-globe text-secondary me-1"></i>IP
+                      Address:
+                    </th>
+                    <td id="detailDeviceIp">--</td>
+                  </tr>
+                  <tr>
+                    <th>
+                      <i class="fas fa-industry text-secondary me-1"></i
+                      >Manufacturer:
+                    </th>
+                    <td id="detailDeviceManufacturer">--</td>
+                  </tr>
+                  <tr>
+                    <th>
+                      <i class="fas fa-cube text-secondary me-1"></i>Model:
+                    </th>
+                    <td id="detailDeviceModel">--</td>
+                  </tr>
+                  <tr>
+                    <th>
+                      <i class="fas fa-barcode text-secondary me-1"></i>Serial
+                      Number:
+                    </th>
+                    <td id="detailDeviceSerialNumber">--</td>
+                  </tr>
+                  <tr>
+                    <th>
+                      <i class="fas fa-calendar-alt text-secondary me-1"></i
+                      >Installation Date:
+                    </th>
+                    <td id="detailDeviceInstalledDate">--</td>
+                  </tr>
+                  <tr>
+                    <th>
+                      <i class="fas fa-bolt text-secondary me-1"></i>Power
+                      Usage:
+                    </th>
+                    <td id="detailDevicePowerConsumption">--</td>
+                  </tr>
+                  <tr>
+                    <th>
+                      <i class="fas fa-plug text-secondary me-1"></i>Connection
+                      Type:
+                    </th>
+                    <td id="detailDeviceConnectionType">--</td>
+                  </tr>
+                </table>
+              </div>
+            </div>
           </div>
           <div class="col-md-6">
-            <h6>Current Readings</h6>
-            <div id="deviceReadings">
-              <div class="text-center py-5">
-                <div class="spinner-border text-primary" role="status">
-                  <span class="visually-hidden">Loading...</span>
-                </div>
-                <p class="mt-2">Loading latest data...</p>
-              </div>
-            </div>
+            <!-- The Current Readings and Recent Activity cards have been removed from here -->
           </div>
         </div>
 
-        <div class="mt-4">
-          <h6>Recent Activity</h6>
-          <div id="deviceActivity">
-            <div class="text-center py-3">
-              <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden">Loading...</span>
-              </div>
-              <p class="mt-2">Loading activity data...</p>
-            </div>
-          </div>
-        </div>
-
-        <div class="mt-4">
-          <h6>Data Visualization</h6>
-          <div
-            class="chart-container"
-            style="height: 200px"
-            id="deviceDetailsChart"
-          >
-            <canvas></canvas>
-          </div>
-        </div>
+        <!-- The Data Visualization card has been removed from here -->
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
           Close
         </button>
         <button type="button" class="btn btn-primary" id="viewDeviceHistory">
-          View Full History
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Share Device Modal -->
-<div
-  class="modal fade"
-  id="shareDeviceModal"
-  tabindex="-1"
-  aria-labelledby="shareDeviceModalLabel"
-  aria-hidden="true"
->
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="shareDeviceModalLabel">
-          <i class="fas fa-share-alt me-2"></i>Share Device
-        </h5>
-        <button
-          type="button"
-          class="btn-close"
-          data-bs-dismiss="modal"
-          aria-label="Close"
-        ></button>
-      </div>
-      <div class="modal-body">
-        <form id="shareDeviceForm">
-          <input type="hidden" id="shareDeviceId" />
-          <div class="mb-3">
-            <label for="shareWithEmail" class="form-label">User Email</label>
-            <input
-              type="email"
-              class="form-control"
-              id="shareWithEmail"
-              placeholder="user@example.com"
-              required
-            />
-            <div class="form-text">
-              Enter the email address of the user you want to share with
-            </div>
-          </div>
-          <div class="mb-3">
-            <div class="form-check">
-              <input class="form-check-input" type="checkbox" id="allowEdit" />
-              <label class="form-check-label" for="allowEdit">
-                Allow this user to edit device settings
-              </label>
-            </div>
-          </div>
-        </form>
-
-        <div class="mt-4">
-          <h6>Currently shared with:</h6>
-          <div id="currentShares">
-            <p class="text-muted">Loading...</p>
-          </div>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-          Close
-        </button>
-        <button type="button" class="btn btn-primary" id="shareDeviceSubmit">
-          Share Device
+          <i class="fas fa-history me-1"></i>View Full History
         </button>
       </div>
     </div>
@@ -535,879 +507,89 @@ endblock %} {% block content %}
 </div>
 
 {% endblock %} {% block custom_js %}
+<script src="/static/js/devices.js"></script>
 <script>
   document.addEventListener('DOMContentLoaded', function () {
-    // Initialize charts for device statistics
-    initDeviceStatisticsCharts();
+    // Function to organize devices by floor
+    function organizeDevicesByFloor() {
+      // Get all device cards
+      const deviceCards = document.querySelectorAll('.device-card-container');
 
-    // Handle share device modal
-    const shareDeviceModal = document.getElementById('shareDeviceModal');
-    if (shareDeviceModal) {
-      shareDeviceModal.addEventListener('show.bs.modal', function (event) {
-        const button = event.relatedTarget;
-        const deviceId = button.getAttribute('data-device-id');
+      // Clear the floor-specific containers
+      document.getElementById('devices-ground').innerHTML = '';
+      document.getElementById('devices-first').innerHTML = '';
+      document.getElementById('devices-second').innerHTML = '';
+      document.getElementById('devices-basement').innerHTML = '';
 
-        // Set device ID
-        document.getElementById('shareDeviceId').value = deviceId;
-
-        // Load current shares
-        loadCurrentShares(deviceId);
+      // Clone and distribute devices to their respective floors
+      deviceCards.forEach((card) => {
+        const floor = card.getAttribute('data-floor');
+        if (floor) {
+          const clone = card.cloneNode(true);
+          document.getElementById(`devices-${floor}`).appendChild(clone);
+        }
       });
     }
 
-    // Handle share device submission
+    // Initialize floor organization
+    organizeDevicesByFloor();
+
+    // Filter functionality
+    function filterDevices() {
+      const selectedFloor = document.getElementById('floorFilter').value;
+      const selectedLocation = document.getElementById('locationFilter').value;
+
+      // Filter table rows
+      const tableRows = document.querySelectorAll('#devicesTable tbody tr');
+      tableRows.forEach((row) => {
+        const floorMatch =
+          selectedFloor === 'all' ||
+          row.getAttribute('data-floor') === selectedFloor;
+        const locationMatch =
+          selectedLocation === 'all' ||
+          row.getAttribute('data-location') === selectedLocation;
+
+        if (floorMatch && locationMatch) {
+          row.style.display = '';
+        } else {
+          row.style.display = 'none';
+        }
+      });
+
+      // Filter card view
+      const deviceCards = document.querySelectorAll('.device-card-container');
+      deviceCards.forEach((card) => {
+        const floorMatch =
+          selectedFloor === 'all' ||
+          card.getAttribute('data-floor') === selectedFloor;
+        const locationMatch =
+          selectedLocation === 'all' ||
+          card.getAttribute('data-location') === selectedLocation;
+
+        if (floorMatch && locationMatch) {
+          card.style.display = '';
+        } else {
+          card.style.display = 'none';
+        }
+      });
+    }
+
+    // Add event listeners for filter changes
     document
-      .getElementById('shareDeviceSubmit')
-      .addEventListener('click', function () {
-        const deviceId = document.getElementById('shareDeviceId').value;
-        const email = document.getElementById('shareWithEmail').value;
-        const allowEdit = document.getElementById('allowEdit').checked;
+      .getElementById('floorFilter')
+      .addEventListener('change', filterDevices);
+    document
+      .getElementById('locationFilter')
+      .addEventListener('change', filterDevices);
 
-        if (!email) {
-          showAlert('Please enter a valid email address', 'danger');
-          return;
-        }
-
-        // Send API request to share device
-        apiRequest(`/api/devices/${deviceId}/share`, 'POST', {
-          email: email,
-          allow_edit: allowEdit,
-        }).then((response) => {
-          if (response.success) {
-            // Show success message
-            showAlert('Device shared successfully', 'success');
-
-            // Clear email field
-            document.getElementById('shareWithEmail').value = '';
-            document.getElementById('allowEdit').checked = false;
-
-            // Reload current shares
-            loadCurrentShares(deviceId);
-          }
-        });
+    // Tab switching should also respect current filters
+    document.querySelectorAll('#floorTabs .nav-link').forEach((tab) => {
+      tab.addEventListener('click', function () {
+        const floor = this.id.replace('-tab', '').replace('all-floors', 'all');
+        document.getElementById('floorFilter').value = floor;
+        filterDevices();
       });
-
-    // Load current shares for a device
-    function loadCurrentShares(deviceId) {
-      const sharesContainer = document.getElementById('currentShares');
-      sharesContainer.innerHTML = '<p class="text-muted">Loading...</p>';
-
-      // Fetch current shares
-      apiRequest(`/api/devices/${deviceId}/shares`, 'GET')
-        .then((response) => {
-          if (
-            response.success &&
-            response.shares &&
-            response.shares.length > 0
-          ) {
-            let html = '<ul class="list-group">';
-            response.shares.forEach((share) => {
-              html += `
-              <li class="list-group-item d-flex justify-content-between align-items-center">
-                <div>
-                  <span>${share.user_email}</span>
-                  ${
-                    share.can_edit
-                      ? '<span class="badge bg-primary ms-2">Can Edit</span>'
-                      : ''
-                  }
-                </div>
-                <button type="button" class="btn btn-sm btn-danger remove-share" data-share-id="${
-                  share.id
-                }">
-                  <i class="fas fa-times"></i>
-                </button>
-              </li>
-            `;
-            });
-            html += '</ul>';
-            sharesContainer.innerHTML = html;
-
-            // Add event listeners to remove share buttons
-            document.querySelectorAll('.remove-share').forEach((button) => {
-              button.addEventListener('click', function () {
-                const shareId = this.getAttribute('data-share-id');
-                removeShare(deviceId, shareId);
-              });
-            });
-          } else {
-            sharesContainer.innerHTML =
-              '<p class="text-muted">This device is not shared with anyone</p>';
-          }
-        })
-        .catch(() => {
-          sharesContainer.innerHTML =
-            '<p class="text-danger">Failed to load sharing information</p>';
-        });
-    }
-
-    // Remove a share
-    function removeShare(deviceId, shareId) {
-      apiRequest(`/api/devices/${deviceId}/shares/${shareId}`, 'DELETE').then(
-        (response) => {
-          if (response.success) {
-            // Show success message
-            showAlert('Share removed successfully', 'success');
-
-            // Reload current shares
-            loadCurrentShares(deviceId);
-          }
-        }
-      );
-    }
-
-    // Initialize device statistics charts
-    function initDeviceStatisticsCharts() {
-      // Get device data counts
-      const devices = {
-        types: {},
-        locations: {},
-        status: {
-          online: 0,
-          offline: 0,
-          error: 0,
-        },
-      };
-
-      // Count devices by type, location, and status
-      document.querySelectorAll('tbody tr').forEach((row) => {
-        const type = row.cells[3].textContent.trim();
-        const location = row.cells[4].textContent.trim();
-        const status = row.cells[0]
-          .querySelector('.device-status')
-          .classList.contains('status-online')
-          ? 'online'
-          : row.cells[0]
-              .querySelector('.device-status')
-              .classList.contains('status-error')
-          ? 'error'
-          : 'offline';
-
-        // Count by type
-        if (!devices.types[type]) {
-          devices.types[type] = 0;
-        }
-        devices.types[type]++;
-
-        // Count by location
-        if (!devices.locations[location]) {
-          devices.locations[location] = 0;
-        }
-        devices.locations[location]++;
-
-        // Count by status
-        devices.status[status]++;
-      });
-
-      // Create device types chart
-      const typeCtx = document
-        .getElementById('deviceTypesChart')
-        .getContext('2d');
-      new Chart(typeCtx, {
-        type: 'doughnut',
-        data: {
-          labels: Object.keys(devices.types),
-          datasets: [
-            {
-              data: Object.values(devices.types),
-              backgroundColor: [
-                'rgba(231, 76, 60, 0.7)',
-                'rgba(52, 152, 219, 0.7)',
-                'rgba(243, 156, 18, 0.7)',
-                'rgba(46, 204, 113, 0.7)',
-                'rgba(155, 89, 182, 0.7)',
-              ],
-              borderColor: [
-                'rgba(231, 76, 60, 1)',
-                'rgba(52, 152, 219, 1)',
-                'rgba(243, 156, 18, 1)',
-                'rgba(46, 204, 113, 1)',
-                'rgba(155, 89, 182, 1)',
-              ],
-              borderWidth: 1,
-            },
-          ],
-        },
-        options: {
-          responsive: true,
-          plugins: {
-            legend: {
-              position: 'right',
-            },
-          },
-        },
-      });
-
-      // Create device locations chart
-      const locationCtx = document
-        .getElementById('deviceLocationsChart')
-        .getContext('2d');
-      new Chart(locationCtx, {
-        type: 'doughnut',
-        data: {
-          labels: Object.keys(devices.locations),
-          datasets: [
-            {
-              data: Object.values(devices.locations),
-              backgroundColor: [
-                'rgba(52, 152, 219, 0.7)',
-                'rgba(155, 89, 182, 0.7)',
-                'rgba(46, 204, 113, 0.7)',
-                'rgba(243, 156, 18, 0.7)',
-                'rgba(231, 76, 60, 0.7)',
-              ],
-              borderColor: [
-                'rgba(52, 152, 219, 1)',
-                'rgba(155, 89, 182, 1)',
-                'rgba(46, 204, 113, 1)',
-                'rgba(243, 156, 18, 1)',
-                'rgba(231, 76, 60, 1)',
-              ],
-              borderWidth: 1,
-            },
-          ],
-        },
-        options: {
-          responsive: true,
-          plugins: {
-            legend: {
-              position: 'right',
-            },
-          },
-        },
-      });
-
-      // Create device status chart
-      const statusCtx = document
-        .getElementById('deviceStatusChart')
-        .getContext('2d');
-      new Chart(statusCtx, {
-        type: 'doughnut',
-        data: {
-          labels: ['Online', 'Offline', 'Error'],
-          datasets: [
-            {
-              data: [
-                devices.status.online,
-                devices.status.offline,
-                devices.status.error,
-              ],
-              backgroundColor: [
-                'rgba(46, 204, 113, 0.7)',
-                'rgba(149, 165, 166, 0.7)',
-                'rgba(231, 76, 60, 0.7)',
-              ],
-              borderColor: [
-                'rgba(46, 204, 113, 1)',
-                'rgba(149, 165, 166, 1)',
-                'rgba(231, 76, 60, 1)',
-              ],
-              borderWidth: 1,
-            },
-          ],
-        },
-        options: {
-          responsive: true,
-          plugins: {
-            legend: {
-              position: 'right',
-            },
-          },
-        },
-      });
-    }
-
-    // Load device data
-    function loadDeviceData(deviceId) {
-      const readingsContainer = document.getElementById('deviceReadings');
-
-      // Show loading indicator
-      readingsContainer.innerHTML = `
-            <div class="text-center py-5">
-                <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden">Loading...</span>
-                </div>
-                <p class="mt-2">Loading latest data...</p>
-            </div>
-        `;
-
-      // Fetch device data
-      apiRequest(`/api/devices/${deviceId}/data?limit=1`, 'GET')
-        .then((response) => {
-          if (response.success && response.data && response.data.length > 0) {
-            const data = response.data[0];
-
-            // Format date
-            const timestamp = formatDate(data.timestamp);
-
-            // Get unit
-            let unit = data.unit || '';
-
-            // Display data
-            readingsContainer.innerHTML = `
-                        <div class="text-center">
-                            <div class="sensor-value-large">
-                                <div class="value">${parseFloat(
-                                  data.value
-                                ).toFixed(
-                                  1
-                                )}<span class="unit">${unit}</span></div>
-                                <div class="timestamp">as of ${timestamp}</div>
-                            </div>
-                        </div>
-                    `;
-          } else {
-            readingsContainer.innerHTML = `
-                        <div class="alert alert-info">
-                            <i class="fas fa-info-circle me-2"></i>
-                            No sensor data available for this device.
-                        </div>
-                    `;
-          }
-        })
-        .catch((error) => {
-          readingsContainer.innerHTML = `
-                    <div class="alert alert-danger">
-                        <i class="fas fa-exclamation-circle me-2"></i>
-                        Error loading device data: ${error.message}
-                    </div>
-                `;
-        });
-    }
-
-    // Load device activity
-    function loadDeviceActivity(deviceId) {
-      const activityContainer = document.getElementById('deviceActivity');
-
-      // Show loading indicator
-      activityContainer.innerHTML = `
-            <div class="text-center py-3">
-                <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden">Loading...</span>
-                </div>
-                <p class="mt-2">Loading activity data...</p>
-            </div>
-        `;
-
-      // TODO: Replace with actual API call to get device activity
-      // For now, just show a placeholder
-      setTimeout(() => {
-        activityContainer.innerHTML = `
-                <div class="alert alert-info">
-                    <i class="fas fa-info-circle me-2"></i>
-                    User action history is not available yet.
-                </div>
-            `;
-      }, 1000);
-    }
-
-    // Initialize device details chart
-    function initDeviceDetailsChart(deviceId, deviceType) {
-      const canvas = document.querySelector('#deviceDetailsChart canvas');
-      if (!canvas) return;
-
-      // Fetch device data for the chart
-      apiRequest(`/api/devices/${deviceId}/data?limit=20`, 'GET').then(
-        (response) => {
-          if (response.success && response.data && response.data.length > 0) {
-            const data = response.data.reverse(); // Oldest first
-
-            // Determine chart color based on device type
-            let color;
-            if (deviceType === 'temperature') {
-              color = 'rgb(231, 76, 60)';
-            } else if (deviceType === 'humidity') {
-              color = 'rgb(52, 152, 219)';
-            } else if (deviceType === 'light') {
-              color = 'rgb(243, 156, 18)';
-            } else {
-              color = 'rgb(46, 204, 113)';
-            }
-
-            // Prepare data for chart
-            const chartData = {
-              labels: data.map((item) => new Date(item.timestamp)),
-              datasets: [
-                {
-                  label: deviceType[0].toUpperCase() + deviceType.slice(1),
-                  data: data.map((item) => item.value),
-                  borderColor: color,
-                  backgroundColor: color
-                    .replace('rgb', 'rgba')
-                    .replace(')', ', 0.1)'),
-                  borderWidth: 2,
-                  tension: 0.2,
-                  fill: true,
-                },
-              ],
-            };
-
-            // Create chart
-            new Chart(canvas, {
-              type: 'line',
-              data: chartData,
-              options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                  x: {
-                    type: 'time',
-                    time: {
-                      unit: 'minute',
-                      displayFormats: {
-                        minute: 'HH:mm',
-                      },
-                    },
-                    title: {
-                      display: true,
-                      text: 'Time',
-                    },
-                  },
-                  y: {
-                    title: {
-                      display: true,
-                      text: `${
-                        deviceType[0].toUpperCase() + deviceType.slice(1)
-                      } ${data[0].unit || ''}`,
-                    },
-                  },
-                },
-                plugins: {
-                  legend: {
-                    display: false,
-                  },
-                },
-              },
-            });
-          } else {
-            document.getElementById('deviceDetailsChart').innerHTML = `
-                        <div class="alert alert-info">
-                            <i class="fas fa-info-circle me-2"></i>
-                            No data available for chart visualization.
-                        </div>
-                    `;
-          }
-        }
-      );
-    }
-
-    // Helper function for API requests
-    function apiRequest(url, method = 'GET', data = null) {
-      const options = {
-        method: method,
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-        credentials: 'same-origin'
-      };
-
-      if (data && (method === 'POST' || method === 'PUT')) {
-        options.body = JSON.stringify(data);
-      }
-
-      return fetch(url, options)
-        .then(response => {
-          if (!response.ok) {
-            throw new Error('Network response was not ok');
-          }
-          return response.json();
-        })
-        .catch(error => {
-          console.error('API Request failed:', error);
-          showAlert('An error occurred while processing your request.', 'danger');
-          throw error;
-        });
-    }
-
-    // Format date helper function
-    function formatDate(dateString) {
-      if (!dateString) return 'Never';
-      
-      const date = new Date(dateString);
-      if (isNaN(date.getTime())) return 'Invalid date';
-      
-      const now = new Date();
-      const diff = Math.floor((now - date) / 1000); // Difference in seconds
-      
-      if (diff < 60) return 'Just now';
-      if (diff < 3600) return `${Math.floor(diff / 60)} minutes ago`;
-      if (diff < 86400) return `${Math.floor(diff / 3600)} hours ago`;
-      if (diff < 172800) return 'Yesterday';
-      
-      return date.toLocaleString();
-    }
-
-    // Show alert helper function
-    function showAlert(message, type = 'success') {
-      const alertPlaceholder = document.getElementById('alertPlaceholder') || document.createElement('div');
-      if (!document.getElementById('alertPlaceholder')) {
-        alertPlaceholder.id = 'alertPlaceholder';
-        alertPlaceholder.className = 'alert-container position-fixed top-0 end-0 p-3';
-        alertPlaceholder.style.zIndex = '1050';
-        document.body.appendChild(alertPlaceholder);
-      }
-      
-      const alertHtml = `
-        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
-          ${message}
-          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-      `;
-      
-      alertPlaceholder.innerHTML = alertHtml;
-      
-      // Auto-dismiss after 5 seconds
-      setTimeout(() => {
-        const alerts = document.querySelectorAll('.alert');
-        alerts.forEach(alert => {
-          const bsAlert = new bootstrap.Alert(alert);
-          bsAlert.close();
-        });
-      }, 5000);
-    }
-
-    // Handle device details modal
-    const deviceDetailsModal = document.getElementById('deviceDetailsModal');
-    if (deviceDetailsModal) {
-      deviceDetailsModal.addEventListener('show.bs.modal', function (event) {
-        const button = event.relatedTarget;
-        const deviceId = button.getAttribute('data-device-id');
-        
-        // Clear previous device details
-        document.getElementById('detailDeviceId').textContent = deviceId;
-        document.getElementById('detailDeviceName').textContent = 'Loading...';
-        document.getElementById('detailDeviceType').textContent = 'Loading...';
-        document.getElementById('detailDeviceLocation').textContent = 'Loading...';
-        document.getElementById('detailDeviceStatus').textContent = 'Loading...';
-        document.getElementById('detailDeviceLastSeen').textContent = 'Loading...';
-        document.getElementById('detailDeviceFirmware').textContent = 'Loading...';
-        document.getElementById('detailDeviceMac').textContent = 'Loading...';
-        document.getElementById('detailDeviceIp').textContent = 'Loading...';
-        
-        // Load device details
-        loadDeviceDetails(deviceId);
-        
-        // Load device data
-        loadDeviceData(deviceId);
-        
-        // Load device activity
-        loadDeviceActivity(deviceId);
-        
-        // Set up the "View Full History" button
-        document.getElementById('viewDeviceHistory').setAttribute('data-device-id', deviceId);
-      });
-      
-      // Handle View Full History button click
-      document.getElementById('viewDeviceHistory').addEventListener('click', function() {
-        const deviceId = this.getAttribute('data-device-id');
-        window.location.href = `/device_history?device_id=${deviceId}`;
-      });
-    }
-
-    // Load device details function
-    function loadDeviceDetails(deviceId) {
-      // Fetch device details
-      apiRequest(`/api/devices/${deviceId}`, 'GET')
-        .then(response => {
-          if (response.success && response.device) {
-            const device = response.device;
-            
-            // Update device details in the modal
-            document.getElementById('detailDeviceId').textContent = device.device_id;
-            document.getElementById('detailDeviceName').textContent = device.name;
-            
-            // Set device type with icon
-            let typeHtml = '';
-            if (device.type === 'temperature') {
-              typeHtml = '<span class="badge bg-danger"><i class="fas fa-thermometer-half me-1"></i> Temperature</span>';
-            } else if (device.type === 'humidity') {
-              typeHtml = '<span class="badge bg-info"><i class="fas fa-tint me-1"></i> Humidity</span>';
-            } else if (device.type === 'light') {
-              typeHtml = '<span class="badge bg-warning"><i class="fas fa-lightbulb me-1"></i> Light</span>';
-            } else {
-              typeHtml = `<span class="badge bg-secondary"><i class="fas fa-microchip me-1"></i> ${device.type.charAt(0).toUpperCase() + device.type.slice(1)}</span>`;
-            }
-            document.getElementById('detailDeviceType').innerHTML = typeHtml;
-            
-            // Set location with icon
-            let locationHtml = '';
-            if (device.location === 'living_room') {
-              locationHtml = '<span class="badge bg-primary"><i class="fas fa-couch me-1"></i> Living Room</span>';
-            } else if (device.location === 'bedroom') {
-              locationHtml = '<span class="badge bg-info"><i class="fas fa-bed me-1"></i> Bedroom</span>';
-            } else if (device.location === 'kitchen') {
-              locationHtml = '<span class="badge bg-success"><i class="fas fa-utensils me-1"></i> Kitchen</span>';
-            } else {
-              locationHtml = `<span class="badge bg-secondary">${device.location.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</span>`;
-            }
-            document.getElementById('detailDeviceLocation').innerHTML = locationHtml;
-            
-            // Set status with icon and color
-            let statusHtml = '';
-            if (device.status === 'online') {
-              statusHtml = '<span class="badge bg-success"><i class="fas fa-check-circle me-1"></i> Online</span>';
-            } else if (device.status === 'offline') {
-              statusHtml = '<span class="badge bg-secondary"><i class="fas fa-times-circle me-1"></i> Offline</span>';
-            } else if (device.status === 'error') {
-              statusHtml = '<span class="badge bg-danger"><i class="fas fa-exclamation-triangle me-1"></i> Error</span>';
-            } else {
-              statusHtml = `<span class="badge bg-secondary">${device.status}</span>`;
-            }
-            document.getElementById('detailDeviceStatus').innerHTML = statusHtml;
-            
-            // Set last seen time
-            document.getElementById('detailDeviceLastSeen').textContent = formatDate(device.last_seen);
-            
-            // Set additional technical details
-            document.getElementById('detailDeviceFirmware').textContent = device.firmware_version || 'N/A';
-            document.getElementById('detailDeviceMac').textContent = device.mac_address || 'N/A';
-            document.getElementById('detailDeviceIp').textContent = device.ip_address || 'N/A';
-            
-            // Initialize chart with device data
-            initDeviceDetailsChart(deviceId, device.type);
-          } else {
-            document.getElementById('detailDeviceName').textContent = 'Error loading device';
-            document.getElementById('detailDeviceType').textContent = 'N/A';
-            document.getElementById('detailDeviceLocation').textContent = 'N/A';
-            document.getElementById('detailDeviceStatus').textContent = 'N/A';
-            document.getElementById('detailDeviceLastSeen').textContent = 'N/A';
-            document.getElementById('detailDeviceFirmware').textContent = 'N/A';
-            document.getElementById('detailDeviceMac').textContent = 'N/A';
-            document.getElementById('detailDeviceIp').textContent = 'N/A';
-            
-            showAlert('Failed to load device details', 'danger');
-          }
-        })
-        .catch(error => {
-          console.error('Error loading device details:', error);
-          document.getElementById('detailDeviceName').textContent = 'Error loading device';
-        });
-    }
-
-    // ...existing code...
-
-    // Load device data
-    function loadDeviceData(deviceId) {
-      const readingsContainer = document.getElementById('deviceReadings');
-
-      // Show loading indicator
-      readingsContainer.innerHTML = `
-            <div class="text-center py-5">
-                <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden">Loading...</span>
-                </div>
-                <p class="mt-2">Loading latest data...</p>
-            </div>
-        `;
-
-      // Fetch device data
-      apiRequest(`/api/devices/${deviceId}/data?limit=1`, 'GET')
-        .then((response) => {
-          if (response.success && response.data && response.data.length > 0) {
-            const data = response.data[0];
-
-            // Format date
-            const timestamp = formatDate(data.timestamp);
-
-            // Get unit
-            let unit = data.unit || '';
-            let valueClass = '';
-            let icon = '';
-            
-            // Set appropriate icon and styling based on device type
-            if (data.type === 'temperature') {
-              icon = '<i class="fas fa-thermometer-half text-danger me-2" style="font-size: 2rem;"></i>';
-              unit = data.unit || '°C';
-              // Add color classes based on temperature value
-              const temp = parseFloat(data.value);
-              if (temp > 30) valueClass = 'text-danger';
-              else if (temp > 25) valueClass = 'text-warning';
-              else if (temp > 15) valueClass = 'text-success';
-              else valueClass = 'text-info';
-            } else if (data.type === 'humidity') {
-              icon = '<i class="fas fa-tint text-info me-2" style="font-size: 2rem;"></i>';
-              unit = data.unit || '%';
-            } else if (data.type === 'light') {
-              icon = '<i class="fas fa-lightbulb text-warning me-2" style="font-size: 2rem;"></i>';
-              unit = data.unit || '%';
-            } else {
-              icon = '<i class="fas fa-microchip text-secondary me-2" style="font-size: 2rem;"></i>';
-            }
-
-            // Display data
-            readingsContainer.innerHTML = `
-                <div class="text-center">
-                    <div class="sensor-value-large">
-                        ${icon}
-                        <div class="value ${valueClass}" style="font-size: 3rem; font-weight: bold;">
-                            ${parseFloat(data.value).toFixed(1)}<span class="unit" style="font-size: 1.5rem; margin-left: 5px;">${unit}</span>
-                        </div>
-                        <div class="timestamp text-muted">as of ${timestamp}</div>
-                    </div>
-                </div>
-                
-                <div class="mt-3">
-                    <table class="table table-sm">
-                        <tr>
-                            <th>Min Value (24h):</th>
-                            <td>${data.min_value || 'N/A'} ${unit}</td>
-                        </tr>
-                        <tr>
-                            <th>Max Value (24h):</th>
-                            <td>${data.max_value || 'N/A'} ${unit}</td>
-                        </tr>
-                        <tr>
-                            <th>Average (24h):</th>
-                            <td>${data.avg_value || 'N/A'} ${unit}</td>
-                        </tr>
-                    </table>
-                </div>
-            `;
-          } else {
-            readingsContainer.innerHTML = `
-                <div class="alert alert-info">
-                    <i class="fas fa-info-circle me-2"></i>
-                    No sensor data available for this device.
-                </div>
-            `;
-          }
-        })
-        .catch((error) => {
-          readingsContainer.innerHTML = `
-                <div class="alert alert-danger">
-                    <i class="fas fa-exclamation-circle me-2"></i>
-                    Error loading device data: ${error.message}
-                </div>
-            `;
-        });
-    }
-
-    // Load device activity
-    function loadDeviceActivity(deviceId) {
-      const activityContainer = document.getElementById('deviceActivity');
-
-      // Show loading indicator
-      activityContainer.innerHTML = `
-            <div class="text-center py-3">
-                <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden">Loading...</span>
-                </div>
-                <p class="mt-2">Loading activity data...</p>
-            </div>
-        `;
-
-      // Fetch device activity
-      apiRequest(`/api/devices/${deviceId}/activity?limit=5`, 'GET')
-        .then((response) => {
-          if (response.success && response.activities && response.activities.length > 0) {
-            let html = `<div class="table-responsive"><table class="table table-sm table-striped">
-                <thead>
-                    <tr>
-                        <th>Time</th>
-                        <th>Action</th>
-                        <th>User</th>
-                        <th>Details</th>
-                    </tr>
-                </thead>
-                <tbody>`;
-                
-            response.activities.forEach(activity => {
-                const time = formatDate(activity.timestamp);
-                let actionIcon = '';
-                
-                switch(activity.action_type) {
-                    case 'control':
-                        actionIcon = '<i class="fas fa-sliders-h text-primary me-1"></i>';
-                        break;
-                    case 'configure':
-                        actionIcon = '<i class="fas fa-cogs text-secondary me-1"></i>';
-                        break;
-                    case 'update':
-                        actionIcon = '<i class="fas fa-sync text-info me-1"></i>';
-                        break;
-                    case 'error':
-                        actionIcon = '<i class="fas fa-exclamation-triangle text-danger me-1"></i>';
-                        break;
-                    default:
-                        actionIcon = '<i class="fas fa-info-circle text-secondary me-1"></i>';
-                }
-                
-                html += `
-                    <tr>
-                        <td>${time}</td>
-                        <td>${actionIcon}${activity.action_type}</td>
-                        <td>${activity.user_name || 'System'}</td>
-                        <td>${activity.details || '-'}</td>
-                    </tr>
-                `;
-            });
-            
-            html += `</tbody></table></div>`;
-            activityContainer.innerHTML = html;
-          } else {
-            activityContainer.innerHTML = `
-                <div class="alert alert-info">
-                    <i class="fas fa-info-circle me-2"></i>
-                    No recent activity recorded for this device.
-                </div>
-            `;
-          }
-        })
-        .catch((error) => {
-          // Fallback to show typical device activities
-          activityContainer.innerHTML = `
-            <div class="timeline">
-                <div class="timeline-item">
-                    <div class="timeline-marker bg-success"></div>
-                    <div class="timeline-content">
-                        <h6 class="mb-0">Device Online</h6>
-                        <small class="text-muted">Today, 08:35 AM</small>
-                        <p class="mb-0 small">Device connected to network</p>
-                    </div>
-                </div>
-                <div class="timeline-item">
-                    <div class="timeline-marker bg-primary"></div>
-                    <div class="timeline-content">
-                        <h6 class="mb-0">Data Reading</h6>
-                        <small class="text-muted">Today, 08:30 AM</small>
-                        <p class="mb-0 small">Temperature reading: 22.5°C</p>
-                    </div>
-                </div>
-                <div class="timeline-item">
-                    <div class="timeline-marker bg-info"></div>
-                    <div class="timeline-content">
-                        <h6 class="mb-0">Firmware Update</h6>
-                        <small class="text-muted">Yesterday, 11:42 PM</small>
-                        <p class="mb-0 small">Updated to firmware v2.0.4</p>
-                    </div>
-                </div>
-            </div>
-            <style>
-                .timeline {
-                    position: relative;
-                    padding-left: 30px;
-                }
-                .timeline-item {
-                    position: relative;
-                    padding-bottom: 15px;
-                    border-left: 2px solid #e9ecef;
-                    padding-left: 20px;
-                }
-                .timeline-marker {
-                    position: absolute;
-                    width: 12px;
-                    height: 12px;
-                    border-radius: 50%;
-                    left: -7px;
-                    top: 4px;
-                }
-            </style>
-        `;
-        });
-    }
-
-    // ...existing code...
+    });
   });
 </script>
 {% endblock %}

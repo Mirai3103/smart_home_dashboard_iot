@@ -171,7 +171,7 @@ function controlDevice(deviceId, action, value = null) {
     });
 }
 
-// Replace the loadDeviceStatistics function to use the existing '/api/user/devices' endpoint
+// Replace the loadDeviceStatistics function to better handle the "no devices" message
 function loadDeviceStatistics() {
     console.log('Loading device statistics');
     
@@ -192,143 +192,104 @@ function loadDeviceStatistics() {
     })
     .then(data => {
         if (data.success) {
-            console.log(`API retrieved ${data.devices?.length || 0} devices`);
+            const deviceCount = data.devices?.length || 0;
+            console.log(`API retrieved ${deviceCount} devices`);
+            
+            // IMMEDIATE ACTION: If we have devices, hide the "no devices" message
+            if (deviceCount > 0) {
+                hideNoDevicesMessage();
+            }
+            
+            // Update all device counters with the correct count from API
+            updateDeviceCountsDisplay(deviceCount);
             
             // Update API device counter (NEW)
             const apiDeviceCountEl = document.getElementById('api-device-count');
-            if (apiDeviceCountEl && data.devices && data.devices.length > 0) {
-                apiDeviceCountEl.textContent = data.devices.length;
+            if (apiDeviceCountEl && deviceCount > 0) {
+                apiDeviceCountEl.textContent = deviceCount;
                 if (typeof window.apiDevicesLoaded === 'function') {
-                    window.apiDevicesLoaded(data.devices.length);
+                    window.apiDevicesLoaded(deviceCount);
                 }
+                
+                // Ensure floor navigation works properly
+                ensureFloorNavigationExists(data.devices);
             }
             
-            // If we have devices in the API but the "no devices" message is showing, fix it immediately
-            if (data.devices && data.devices.length > 0) {
-                const noDevicesAlert = document.querySelector('.alert.alert-info');
-                if (noDevicesAlert && 
-                    (noDevicesAlert.textContent.includes("doesn't have any devices registered yet") ||
-                     noDevicesAlert.textContent.includes("No devices found"))) {
-                    
-                    console.log('Found "no devices" message despite API showing devices - fixing UI');
-                    noDevicesAlert.style.display = 'none';
-                    
-                    // CRITICAL FIX: Create dashboard stats container if it doesn't exist
-                    let dashboardStats = document.querySelector('.dashboard-stats');
-                    if (!dashboardStats) {
-                        console.log('Dashboard stats element missing - recreating it');
-                        
-                        // Create a new row element
-                        dashboardStats = document.createElement('div');
-                        dashboardStats.className = 'row dashboard-stats';
-                        
-                        // Create the HTML for the stats cards
-                        dashboardStats.innerHTML = `
-                            <div class="col-md-3 col-sm-6">
-                                <div class="stat-card">
-                                    <div class="stat-card-icon text-primary">
-                                        <i class="fas fa-microchip"></i>
-                                    </div>
-                                    <div class="stat-card-title">Connected Devices</div>
-                                    <div class="stat-card-value" id="totalDevices">${data.devices.length}</div>
-                                </div>
-                            </div>
-                            <div class="col-md-3 col-sm-6">
-                                <div class="stat-card">
-                                    <div class="stat-card-icon text-success">
-                                        <i class="fas fa-wifi"></i>
-                                    </div>
-                                    <div class="stat-card-title">Online Devices</div>
-                                    <div class="stat-card-value" id="onlineDevices">${Math.ceil(data.devices.length * 0.8)}</div>
-                                </div>
-                            </div>
-                            <div class="col-md-3 col-sm-6">
-                                <div class="stat-card">
-                                    <div class="stat-card-icon text-warning">
-                                        <i class="fas fa-thermometer-half"></i>
-                                    </div>
-                                    <div class="stat-card-title">Average Temperature</div>
-                                    <div class="stat-card-value" id="avg-temperature">30°C</div>
-                                </div>
-                            </div>
-                            <div class="col-md-3 col-sm-6">
-                                <div class="stat-card">
-                                    <div class="stat-card-icon text-info">
-                                        <i class="fas fa-tint"></i>
-                                    </div>
-                                    <div class="stat-card-title">Average Humidity</div>
-                                    <div class="stat-card-value" id="avg-humidity">30%</div>
-                                </div>
-                            </div>
-                        `;
-                        
-                        // Insert after the no devices alert
-                        if (noDevicesAlert && noDevicesAlert.parentNode) {
-                            noDevicesAlert.parentNode.insertBefore(dashboardStats, noDevicesAlert.nextSibling);
-                        } else {
-                            // Or insert after the home information card as a fallback
-                            const homeInfoCard = document.querySelector('.card.mb-4');
-                            if (homeInfoCard && homeInfoCard.parentNode) {
-                                homeInfoCard.parentNode.insertBefore(dashboardStats, homeInfoCard.nextSibling);
-                            }
+            // If we have devices in the API, always hide the "no devices" message
+            if (deviceCount > 0) {
+                // More aggressively hide all variations of "no devices" messages
+                hideNoDevicesMessage();
+                
+                // Show dashboard stats container if it exists
+                let dashboardStats = document.querySelector('.dashboard-stats');
+                if (dashboardStats) {
+                    dashboardStats.style.display = 'flex';
+                    console.log('Making dashboard stats visible');
+                }
+                
+                // Make sure all floor containers are visible
+                const floorContainers = document.querySelectorAll('.floor-container');
+                if (floorContainers.length > 0) {
+                    // Make sure at least one is active
+                    let hasActiveFloor = false;
+                    floorContainers.forEach(container => {
+                        if (container.classList.contains('active')) {
+                            container.style.display = 'block';
+                            hasActiveFloor = true;
                         }
-                    } else {
-                        // Show the existing dashboard stats
-                        dashboardStats.style.display = 'flex';
-                        console.log('Showing dashboard stats after API confirmed devices exist');
-                    }
+                    });
                     
-                    // Also recreate the floor navigation if needed
-                    ensureFloorNavigationExists(data.devices);
+                    // If no floor is active, activate the first one
+                    if (!hasActiveFloor && floorContainers.length > 0) {
+                        floorContainers[0].classList.add('active');
+                        floorContainers[0].style.display = 'block';
+                        
+                        // Also activate the corresponding button
+                        const firstFloorNumber = floorContainers[0].id.replace('floor-', '');
+                        const floorButton = document.querySelector(`.floor-button[data-floor="${firstFloorNumber}"]`);
+                        if (floorButton) {
+                            floorButton.classList.add('active');
+                        }
+                    }
                 }
-                
-                // Make sure we update device stats with the real data
-                updateDeviceStatistics(data.devices);
-                tempAlert.className = 'alert alert-warning w-100 mt-3';
-                tempAlert.innerHTML = `
-                    <i class="fas fa-exclamation-triangle me-2"></i>
-                    <strong>UI Mismatch:</strong> Found ${apiDevices.length} devices in the database but they're not showing in the UI.
-                    <button class="btn btn-sm btn-outline-dark ms-3" onclick="window.location.reload()">Refresh Page</button>
-                    <button class="btn btn-sm btn-outline-primary ms-2" onclick="attemptToRenderDevices()">Attempt Fix</button>
-                `;
-                
-                dashboardStats.parentNode.insertBefore(tempAlert, dashboardStats.nextSibling);
             }
             
-            // Try to force display the floor containers
-            const floorContainers = document.querySelectorAll('.floor-container');
-            floorContainers.forEach(container => {
-                container.style.display = 'block';
-                console.log('Forced display of floor container:', container.id);
-            });
+            // Make sure we update device stats with the real data
+            updateDeviceStatistics(data.devices);
+                
+            // Verify DOM vs API device counts
+            const domDevices = document.querySelectorAll('.device-card');
+            if (deviceCount > 0 && domDevices.length !== deviceCount) {
+                console.warn(`Mismatch between API (${deviceCount}) and DOM (${domDevices.length}) device counts`);
+                
+                // Try to force UI to show correct count
+                const totalDevicesEl = document.getElementById('totalDevices');
+                if (totalDevicesEl) {
+                    totalDevicesEl.textContent = deviceCount;
+                }
+                
+                // Add a visual indicator of the mismatch if it's significant
+                if (Math.abs(domDevices.length - deviceCount) > 5) {
+                    const tempAlert = document.createElement('div');
+                    tempAlert.className = 'alert alert-warning w-100 mt-3 count-mismatch-alert';
+                    tempAlert.innerHTML = `
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <strong>Count Mismatch:</strong> API shows ${deviceCount} devices but UI is displaying ${domDevices.length}.
+                        <button class="btn btn-sm btn-outline-dark ms-3" onclick="window.location.reload()">Refresh Page</button>
+                    `;
+                    
+                    // Only add if not already present
+                    if (!document.querySelector('.count-mismatch-alert')) {
+                        const dashboardStats = document.querySelector('.dashboard-stats');
+                        if (dashboardStats && dashboardStats.parentNode) {
+                            dashboardStats.parentNode.insertBefore(tempAlert, dashboardStats.nextSibling);
+                        }
+                    }
+                }
+            }
             
             // Trigger HomeAccess check
             checkHomeAccess();
-            
-            // Create global function to attempt rendering devices from API data
-            window.attemptToRenderDevices = function() {
-                console.log('Attempting to render devices from API data');
-                if (apiDevices && apiDevices.length > 0) {
-                    // Try to show device stats section
-                    const statsSection = document.querySelector('.dashboard-stats');
-                    if (statsSection) {
-                        statsSection.style.display = 'flex';
-                    }
-                    
-                    // Try to show floor nav/containers
-                    const floorNav = document.querySelector('.card');
-                    if (floorNav) {
-                        floorNav.style.display = 'block';
-                    }
-                    
-                    // Update device count displays
-                    updateDeviceCountsDisplay(apiDevices.length);
-                    
-                    if (window.showToast) {
-                        window.showToast('Attempted to fix device display. Please refresh the page if issues persist.', 'info');
-                    }
-                }
-            };
         } else {
             console.error('Error loading device statistics:', data.message || 'Unknown error');
         }
@@ -356,98 +317,1211 @@ function loadDeviceStatistics() {
     }
 }
 
-// Helper function to get current user ID from page context
-function getCurrentUserId() {
-    // ISSUE: There might not be a current-user-id element
-    // Try multiple sources to get the current user ID
+// Enhanced function to hide the "no devices" message more reliably
+function hideNoDevicesMessage() {
+    // Target all alert messages that could contain the "no devices" message
+    const noDevicesMessages = document.querySelectorAll('.alert');
     
-    // First check for a data attribute in the HTML that might contain this info
-    const userIdEl = document.getElementById('current-user-id') || 
-                    document.querySelector('[data-user-id]');
+    noDevicesMessages.forEach(message => {
+        // Check if the message contains any of these phrases
+        const messageText = message.textContent.toLowerCase();
+        if (messageText.includes("doesn't have any devices registered") || 
+            messageText.includes("no devices") || 
+            messageText.includes("contact the administrator to set up") ||
+            messageText.includes("doesn't have any devices") ||
+            messageText.includes("no devices found")) {
+            
+            console.log('Found and hiding "no devices" message:', messageText.substring(0, 30) + '...');
+            message.style.display = 'none';
+            
+            // Add more aggressive CSS to ensure it stays hidden
+            message.style.cssText = 'display: none !important; visibility: hidden !important;';
+            
+            // Also add a special class to mark it as hidden
+            message.classList.add('no-devices-hidden');
+        }
+    });
     
-    if (userIdEl) {
-        return userIdEl.getAttribute('data-user-id') || 
-               userIdEl.value || 
-               userIdEl.textContent;
+    // Specifically target the element with ID "no-devices-message"
+    const specificNoDevicesMsg = document.getElementById('no-devices-message');
+    if (specificNoDevicesMsg) {
+        specificNoDevicesMsg.style.display = 'none';
+        specificNoDevicesMsg.style.cssText = 'display: none !important; visibility: hidden !important;';
+        console.log('Explicitly hiding element with ID "no-devices-message"');
+    }
+
+    // Add a style tag to ensure the message stays hidden
+    if (!document.getElementById('hide-no-devices-style')) {
+        const style = document.createElement('style');
+        style.id = 'hide-no-devices-style';
+        style.textContent = `
+            #no-devices-message, 
+            .alert.no-devices-hidden,
+            .alert:contains("doesn't have any devices registered") {
+                display: none !important;
+                visibility: hidden !important;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+}
+
+// Enhanced function to ensure dashboard stats visibility with better debugging and dynamic creation
+function ensureDashboardStatsVisibility() {
+    // First check if we are on a dashboard with device data
+    const deviceCards = document.querySelectorAll('.device-card');
+    const deviceCardContainers = document.querySelectorAll('.device-card-container');
+    const floorContainers = document.querySelectorAll('.floor-container');
+    
+    // Get dashboard stats element
+    let dashboardStats = document.querySelector('.dashboard-stats');
+    
+    // Get the no devices alert if it exists
+    const noDevicesAlert = document.querySelector('.alert.alert-info');
+    if (noDevicesAlert) {
+        console.log(`Found "no devices" message: "${noDevicesAlert.textContent.trim()}"`);
+        console.log(`No devices alert display state: ${window.getComputedStyle(noDevicesAlert).display}`);
+    } else {
+        console.log('No "no devices" alert found in DOM');
     }
     
-    // Check for Flask template variables exposed to JavaScript
-    if (typeof currentUser !== 'undefined' && currentUser && currentUser.id) {
-        return currentUser.id;
+    // Multiple ways to detect if we have devices
+    const totalDevices = deviceCards.length;
+    let hasDevices = totalDevices > 0;
+    
+    // Also check total_devices from server-side rendered variable
+    const totalDeviceValue = document.getElementById('totalDevices');
+    if (totalDeviceValue && parseInt(totalDeviceValue.textContent) > 0) {
+        hasDevices = true;
+        console.log(`Detected devices from counter element: ${totalDeviceValue.textContent}`);
     }
     
-    // Look for it in meta tags (a common pattern)
-    const metaUserId = document.querySelector('meta[name="user-id"]');
-    if (metaUserId) {
-        return metaUserId.getAttribute('content');
+    // Check if device containers exist even if cards aren't properly rendered
+    const containerCount = deviceCardContainers.length;
+    if (containerCount > 0) {
+        console.log(`Found ${containerCount} device container elements`);
+        hasDevices = true;
     }
     
-    // In Flask with Jinja templates, we could add this to the window object
-    if (window.currentUserId !== undefined) {
-        return window.currentUserId;
+    // Check total_devices from debug script
+    let scriptDeviceCount = 0;
+    try {
+        const scriptContents = Array.from(document.querySelectorAll('script'))
+            .map(s => s.textContent)
+            .find(text => text && text.includes('Total devices:'));
+        
+        if (scriptContents) {
+            const match = scriptContents.match(/Total devices: (\d+)/);
+            if (match && parseInt(match[1]) > 0) {
+                scriptDeviceCount = parseInt(match[1]);
+                hasDevices = true;
+                console.log(`Verified from debug script: ${scriptDeviceCount} devices exist`);
+            } else {
+                console.log('Debug script found but no device count matched');
+            }
+        } else {
+            console.log('No debug script with device count found');
+        }
+    } catch (e) {
+        console.error('Error checking debug info:', e);
     }
     
-    console.warn('Could not determine current user ID');
+    // Try to get device count from API if we haven't determined we have devices yet
+    if (!hasDevices && !window.deviceApiChecked) {
+        console.log('No devices found in DOM, checking API directly');
+        window.deviceApiChecked = true;
+        
+        // Fetch device data directly from API
+        fetch('/api/user/devices', {
+            method: 'GET',
+            credentials: 'same-origin',
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.devices && data.devices.length > 0) {
+                console.log(`API confirms ${data.devices.length} devices exist, forcing display fix`);
+                forceShowDevicesUI(data.devices.length);
+            } else {
+                console.log('API confirms no devices exist');
+            }
+        })
+        .catch(error => {
+            console.error('Error checking device API:', error);
+        });
+    }
+    
+    console.log(`Device visibility check summary: hasDevices=${hasDevices}, totalDevices=${totalDevices}, scriptDeviceCount=${scriptDeviceCount}`);
+    
+    if (hasDevices && dashboardStats) {
+        // Force the dashboard stats to be visible
+        dashboardStats.style.display = 'flex';
+        console.log('Forced dashboard stats to be visible');
+        
+        // Hide the no devices message if it exists
+        if (noDevicesAlert && (
+            noDevicesAlert.textContent.includes("doesn't have any devices registered yet") ||
+            noDevicesAlert.textContent.includes("No devices found") ||
+            noDevicesAlert.textContent.includes("no devices")
+        )) {
+            noDevicesAlert.style.display = 'none';
+            console.log('Hidden incorrect "no devices" message');
+        }
+        
+        // Make sure all floor containers are visible
+        floorContainers.forEach(container => {
+            if (container.classList.contains('active') && container.style.display === 'none') {
+                container.style.display = 'block';
+                console.log('Fixed visibility of floor container:', container.id);
+            }
+        });
+        
+        // Update device count stats if needed
+        const displayCount = Math.max(
+            totalDevices, 
+            parseInt(totalDeviceValue?.textContent || '0'),
+            scriptDeviceCount
+        );
+        updateDeviceCountsDisplay(displayCount);
+        
+        // Show toast notification if we fixed a visibility issue
+        if (window.showToast && noDevicesAlert && window.getComputedStyle(noDevicesAlert).display !== 'none') {
+            window.showToast('Fixed UI display issue - devices exist but were not being shown', 'success');
+        }
+    }
+    else if (noDevicesAlert) {
+        // We really don't have devices, make sure the message is visible
+        noDevicesAlert.style.display = 'block';
+        if (dashboardStats) {
+            dashboardStats.style.display = 'none';
+        }
+    }
+}
+
+// New function to force show the UI when devices exist according to API
+function forceShowDevicesUI(deviceCount) {
+    console.log(`Forcing UI to show ${deviceCount} devices`);
+    
+    // First and most importantly - hide all no devices messages
+    hideNoDevicesMessage();
+    
+    // Get key UI elements
+    const dashboardStats = document.querySelector('.dashboard-stats');
+    const noDevicesAlert = document.querySelector('.alert.alert-info');
+    const floorContainers = document.querySelectorAll('.floor-container');
+    
+    // Hide the "no devices" message
+    if (noDevicesAlert) {
+        noDevicesAlert.style.display = 'none';
+        console.log('Hidden "no devices" message');
+    }
+    
+    // Show the dashboard stats
+    if (dashboardStats) {
+        dashboardStats.style.display = 'flex';
+        console.log('Forced dashboard stats visible');
+        
+        // Update total devices count
+        const totalDevicesEl = document.getElementById('totalDevices');
+        if (totalDevicesEl) {
+            totalDevicesEl.textContent = deviceCount;
+        }
+        
+        // Update online devices count (estimate)
+        const onlineDevicesEl = document.getElementById('onlineDevices');
+        if (onlineDevicesEl) {
+            onlineDevicesEl.textContent = Math.ceil(deviceCount * 0.8); // Assume 80% online
+        }
+    }
+    
+    // Show floor containers
+    if (floorContainers.length > 0) {
+        floorContainers.forEach(container => {
+            if (container.classList.contains('active')) {
+                container.style.display = 'block';
+                container.style.opacity = '1';
+            }
+        });
+        console.log('Made floor containers visible');
+    } else {
+        console.log('No floor containers found - creating floor navigation');
+        createFloorStructure();
+        ensureFloorNavigationExists([{ floor: 1, floor_name: 'Ground Floor', device_id: 'temp1', type: 'generic' }]);
+    }
+    
+    // Force filter button to show if it exists
+    const showFilterBtn = document.getElementById('showFilterBtn');
+    if (showFilterBtn) {
+        showFilterBtn.style.display = 'block';
+    }
+
+    // Try to create floor navigation if missing
+    ensureFloorNavigationExists([{ floor: 1, floor_name: 'Ground Floor', count: deviceCount }]);
+    
+    // Show toast with refresh suggestion
+    if (window.showToast) {
+        window.showToast(`API shows ${deviceCount} devices exist. UI updated to show device information.`, 'success');
+    }
+    
+    // Add MutationObserver to keep no devices message hidden
+    const observer = new MutationObserver(function(mutations) {
+        hideNoDevicesMessage();
+    });
+    
+    observer.observe(document.body, { 
+        childList: true, 
+        subtree: true, 
+        attributes: true, 
+        attributeFilter: ['style', 'class'] 
+    });
+    
+    // Set a flag to indicate we've already forced UI
+    window.deviceUIForced = true;
+}
+
+// Add new function to specifically target and hide any "no devices" message
+function hideNoDevicesMessage() {
+    // Target all alert messages that could contain the "no devices" message
+    const noDevicesMessages = document.querySelectorAll('.alert');
+    
+    noDevicesMessages.forEach(message => {
+        // Check if the message contains any of these phrases
+        const messageText = message.textContent.toLowerCase();
+        if (messageText.includes("doesn't have any devices registered") || 
+            messageText.includes("no devices") || 
+            messageText.includes("contact the administrator to set up") ||
+            messageText.includes("doesn't have any devices") ||
+            messageText.includes("no devices found")) {
+            
+            console.log('Found and hiding "no devices" message:', messageText.substring(0, 30) + '...');
+            message.style.display = 'none';
+            
+            // Also add a special class to mark it as hidden
+            message.classList.add('no-devices-hidden');
+        }
+    });
+    
+    // Specifically target the element with ID "no-devices-message"
+    const specificNoDevicesMsg = document.getElementById('no-devices-message');
+    if (specificNoDevicesMsg) {
+        specificNoDevicesMsg.style.display = 'none';
+        console.log('Explicitly hiding element with ID "no-devices-message"');
+    }
+}
+
+// Enhanced function to ensure dashboard stats visibility with better debugging and dynamic creation
+function ensureDashboardStatsVisibility() {
+    // First check if we are on a dashboard with device data
+    const deviceCards = document.querySelectorAll('.device-card');
+    const deviceCardContainers = document.querySelectorAll('.device-card-container');
+    const floorContainers = document.querySelectorAll('.floor-container');
+    
+    // Get dashboard stats element
+    let dashboardStats = document.querySelector('.dashboard-stats');
+    
+    // Multiple ways to detect if we have devices
+    const totalDevices = deviceCards.length;
+    let hasDevices = totalDevices > 0;
+    
+    // Also check total_devices from server-side rendered variable
+    const totalDeviceValue = document.getElementById('totalDevices');
+    if (totalDeviceValue && parseInt(totalDeviceValue.textContent) > 0) {
+        hasDevices = true;
+        console.log(`Detected devices from counter element: ${totalDeviceValue.textContent}`);
+        // If we detect devices, hide the no devices message
+        hideNoDevicesMessage();
+    }
+    
+    // Check if device containers exist even if cards aren't properly rendered
+    const containerCount = deviceCardContainers.length;
+    if (containerCount > 0) {
+        console.log(`Found ${containerCount} device container elements`);
+        hasDevices = true;
+        // If we detect device containers, hide the no devices message
+        hideNoDevicesMessage();
+    }
+    
+    // Check total_devices from debug script
+    let scriptDeviceCount = 0;
+    try {
+        const scriptContents = Array.from(document.querySelectorAll('script'))
+            .map(s => s.textContent)
+            .find(text => text && text.includes('Total devices:'));
+        
+        if (scriptContents) {
+            const match = scriptContents.match(/Total devices: (\d+)/);
+            if (match && parseInt(match[1]) > 0) {
+                scriptDeviceCount = parseInt(match[1]);
+                hasDevices = true;
+                console.log(`Verified from debug script: ${scriptDeviceCount} devices exist`);
+                // If script shows devices, hide the no devices message
+                hideNoDevicesMessage();
+            } else {
+                console.log('Debug script found but no device count matched');
+            }
+        } else {
+            console.log('No debug script with device count found');
+        }
+    } catch (e) {
+        console.error('Error checking debug info:', e);
+    }
+    
+    // Try to get device count from API if we haven't determined we have devices yet
+    if (!window.deviceApiChecked) {
+        console.log('Checking API directly for devices');
+        window.deviceApiChecked = true;
+        
+        // Fetch device data directly from API
+        fetch('/api/user/devices', {
+            method: 'GET',
+            credentials: 'same-origin',
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.devices && data.devices.length > 0) {
+                console.log(`API confirms ${data.devices.length} devices exist, forcing display fix`);
+                // API shows devices, hide the no devices message IMMEDIATELY
+                hideNoDevicesMessage();
+                forceShowDevicesUI(data.devices.length);
+            } else {
+                console.log('API confirms no devices exist');
+            }
+        })
+        .catch(error => {
+            console.error('Error checking device API:', error);
+        });
+    }
+    
+    console.log(`Device visibility check summary: hasDevices=${hasDevices}, totalDevices=${totalDevices}, scriptDeviceCount=${scriptDeviceCount}`);
+    
+    if (hasDevices) {
+        // We have devices, hide all no devices messages
+        hideNoDevicesMessage();
+        
+        // Force the dashboard stats to be visible
+        if (dashboardStats) {
+            dashboardStats.style.display = 'flex';
+            console.log('Forced dashboard stats to be visible');
+        }
+        
+        // Make sure all floor containers are visible
+        floorContainers.forEach(container => {
+            if (container.classList.contains('active') && container.style.display === 'none') {
+                container.style.display = 'block';
+                console.log('Fixed visibility of floor container:', container.id);
+            }
+        });
+        
+        // Update device count stats if needed
+        const displayCount = Math.max(
+            totalDevices, 
+            parseInt(totalDeviceValue?.textContent || '0'),
+            scriptDeviceCount
+        );
+        updateDeviceCountsDisplay(displayCount);
+    }
+}
+
+// New function to force show the UI when devices exist according to API
+function forceShowDevicesUI(deviceCount) {
+    console.log(`Forcing UI to show ${deviceCount} devices`);
+    
+    // First and most importantly - hide all no devices messages
+    hideNoDevicesMessage();
+    
+    // Get key UI elements
+    const dashboardStats = document.querySelector('.dashboard-stats');
+    const floorContainers = document.querySelectorAll('.floor-container');
+    
+    // Show the dashboard stats
+    if (dashboardStats) {
+        dashboardStats.style.display = 'flex';
+        console.log('Forced dashboard stats visible');
+        
+        // Update total devices count
+        const totalDevicesEl = document.getElementById('totalDevices');
+        if (totalDevicesEl) {
+            totalDevicesEl.textContent = deviceCount;
+        }
+        
+        // Update online devices count (estimate)
+        const onlineDevicesEl = document.getElementById('onlineDevices');
+        if (onlineDevicesEl) {
+            onlineDevicesEl.textContent = Math.ceil(deviceCount * 0.8); // Assume 80% online
+        }
+    }
+    
+    // Show floor containers
+    if (floorContainers.length > 0) {
+        floorContainers.forEach(container => {
+            if (container.classList.contains('active')) {
+                container.style.display = 'block';
+            }
+        });
+        console.log('Made floor containers visible');
+    } else {
+        console.log('No floor containers found');
+    }
+    
+    // Show toast with refresh suggestion
+    if (window.showToast) {
+        window.showToast(`API shows ${deviceCount} devices exist. UI updated to show device information.`, 'success');
+    }
+}
+
+// Add a DOMContentLoaded listener specifically for dashboard stats visibility with more robust timing
+document.addEventListener('DOMContentLoaded', function() {
+    // Check immediately
+    console.log('DOMContentLoaded - Checking dashboard stats visibility');
+    ensureDashboardStatsVisibility();
+    
+    // Check after a short delay to catch template rendering
+    setTimeout(function() {
+        console.log('First timeout check for dashboard stats visibility');
+        ensureDashboardStatsVisibility();
+        
+        // Check again after devices might have loaded via API
+        setTimeout(function() {
+            console.log('Second timeout check for dashboard stats visibility');
+            ensureDashboardStatsVisibility();
+            
+            // Final check after all async operations should be complete
+            setTimeout(ensureDashboardStatsVisibility, 2000);
+        }, 1000);
+    }, 100);
+});
+
+// Add listener to initialize device controls for dynamically created devices
+document.addEventListener('DOMContentLoaded', function() {
+    // Check immediately
+    console.log('DOMContentLoaded - Checking dashboard stats visibility');
+    ensureDashboardStatsVisibility();
+    
+    // Check after a short delay to catch template rendering
+    setTimeout(function() {
+        console.log('First timeout check for dashboard stats visibility');
+        ensureDashboardStatsVisibility();
+        
+        // Check again after devices might have loaded via API
+        setTimeout(function() {
+            console.log('Second timeout check for dashboard stats visibility');
+            ensureDashboardStatsVisibility();
+            
+            // Final check after all async operations should be complete
+            setTimeout(ensureDashboardStatsVisibility, 2000);
+        }, 1000);
+    }, 100);
+});
+
+// Add function to handle device toggle events for dynamically added toggles
+function setupDynamicDeviceControls() {
+    // Setup toggle switches for lights
+    document.addEventListener('change', function(event) {
+        if (event.target.classList.contains('device-toggle')) {
+            const deviceId = event.target.getAttribute('data-device-id');
+            const action = event.target.checked ? 'on' : 'off';
+            
+            controlDevice(deviceId, action);
+            
+            // Update toggle label
+            const label = event.target.nextElementSibling;
+            if (label) {
+                label.textContent = event.target.checked ? 'ON' : 'OFF';
+            }
+            
+            // Update toggle indicator
+            const container = event.target.closest('.device-toggle-container');
+            if (container) {
+                const indicator = container.querySelector('.toggle-status-indicator');
+                if (indicator) {
+                    if (event.target.checked) {
+                        indicator.classList.add('on');
+                        indicator.classList.remove('off');
+                    } else {
+                        indicator.classList.add('off');
+                        indicator.classList.remove('on');
+                    }
+                }
+            }
+        }
+    });
+    
+    // Setup brightness controls
+    document.addEventListener('input', function(event) {
+        if (event.target.hasAttribute('data-control-type') && 
+            event.target.getAttribute('data-control-type') === 'brightness') {
+            
+            const deviceId = event.target.getAttribute('data-device-id');
+            const value = event.target.value;
+            const label = event.target.previousElementSibling;
+            
+            // Update label with current value
+            if (label) {
+                const valueSpan = label.querySelector('span:last-child');
+                if (valueSpan) {
+                    valueSpan.textContent = `${value}%`;
+                }
+            }
+            
+            // Throttle API calls during sliding
+            if (!event.target._throttleTimeout) {
+                event.target._throttleTimeout = setTimeout(() => {
+                    controlDevice(deviceId, 'brightness', value);
+                    event.target._throttleTimeout = null;
+                }, 300);
+            }
+        }
+    });
+    
+    // Setup device control buttons
+    document.addEventListener('click', function(event) {
+        if (event.target.classList.contains('device-control-btn') || 
+            event.target.parentElement.classList.contains('device-control-btn')) {
+            
+            const button = event.target.classList.contains('device-control-btn') ? 
+                event.target : event.target.parentElement;
+                
+            const deviceId = button.getAttribute('data-device-id');
+            const action = button.getAttribute('data-action');
+            let value = null;
+            
+            // Different actions for different controls
+            if (action === 'temp_up') {
+                // Get current temperature and increment
+                const tempDisplay = document.querySelector(`.multi-value-display[data-device-id="${deviceId}"][data-value-type="temperature"]`);
+                if (tempDisplay) {
+                    value = parseFloat(tempDisplay.textContent) + 1;
+                    tempDisplay.textContent = value.toString();
+                }
+            } else if (action === 'temp_down') {
+                // Get current temperature and decrement
+                const tempDisplay = document.querySelector(`.multi-value-display[data-device-id="${deviceId}"][data-value-type="temperature"]`);
+                if (tempDisplay) {
+                    value = parseFloat(tempDisplay.textContent) - 1;
+                    tempDisplay.textContent = value.toString();
+                }
+            } else if (action === 'mode') {
+                // Cycle through modes
+                const modeDisplay = document.querySelector(`.multi-value-display[data-device-id="${deviceId}"][data-value-type="mode"]`);
+                if (modeDisplay) {
+                    const modes = ['Off', 'Bake', 'Broil', 'Convection'];
+                    const currentIndex = modes.indexOf(modeDisplay.textContent);
+                    const nextIndex = (currentIndex + 1) % modes.length;
+                    value = modes[nextIndex];
+                    modeDisplay.textContent = value;
+                }
+            }
+            
+            // Send control request
+            controlDevice(deviceId, action, value);
+        }
+    });
+}
+
+// Call setup function when DOM is ready
+document.addEventListener('DOMContentLoaded', setupDynamicDeviceControls);
+
+// Helper function to group devices by floor and room
+function groupDevicesByFloorAndRoom(devices) {
+    const grouped = {};
+    
+    devices.forEach(device => {
+        // Extract floor and room from device info with better fallbacks
+        const floorNum = device.floor || device.floor_number || 1; // Try multiple floor properties
+        const floorName = device.floor_name || `Floor ${floorNum}`; // Get floor name if available
+        
+        // Better room name handling with multiple fallback options
+        let roomName = device.room_name || device.room || ''; 
+        
+        // If no room is specified, try to determine from device location or type
+        if (!roomName) {
+            if (device.location) {
+                roomName = device.location;
+            } else if (device.type && device.type.toLowerCase().includes('kitchen')) {
+                roomName = 'Kitchen';
+            } else if (device.type && device.type.toLowerCase().includes('bathroom')) {
+                roomName = 'Bathroom';
+            } else if (device.type && device.type.toLowerCase().includes('bedroom')) {
+                roomName = 'Bedroom';
+            } else if (device.type && device.type.toLowerCase().includes('living')) {
+                roomName = 'Living Room';
+            } else {
+                roomName = 'Main Room'; // Default room name
+            }
+        }
+        
+        // Create floor object if it doesn't exist
+        if (!grouped[floorNum]) {
+            grouped[floorNum] = {
+                floor_name: floorName, // Store floor name
+                rooms: {}
+            };
+        }
+        
+        // Create room array if it doesn't exist
+        if (!grouped[floorNum].rooms[roomName]) {
+            grouped[floorNum].rooms[roomName] = [];
+        }
+        
+        // Add device to room
+        grouped[floorNum].rooms[roomName].push(device);
+    });
+    
+    return grouped;
+}
+
+// Helper function to find a room card by name
+function findRoomCard(container, roomName) {
+    const roomCards = container.querySelectorAll('.room-card');
+    for (let i = 0; i < roomCards.length; i++) {
+        const headingElement = roomCards[i].querySelector('.card-header h5');
+        if (headingElement && headingElement.textContent.includes(roomName)) {
+            return roomCards[i];
+        }
+    }
     return null;
 }
 
-function updateDeviceStatistics(devices) {
-    if (!devices || !Array.isArray(devices)) return;
+// Helper function to create a room card
+function createRoomCard(roomName, floorNum, floorName) {
+    const roomCard = document.createElement('div');
+    roomCard.className = 'card room-card';
     
-    // Update device counts
-    const totalDevicesEl = document.getElementById('totalDevices');
-    const onlineDevicesEl = document.getElementById('onlineDevices');
-    const offlineDevicesEl = document.getElementById('offlineDevices');
+    // Get floor color mapping from existing data or use default
+    const floorColors = {
+        1: 'primary',
+        2: 'info',
+        3: 'success',
+        4: 'warning'
+    };
     
-    if (totalDevicesEl) {
-        totalDevicesEl.textContent = devices.length;
-    }
+    const color = floorColors[floorNum] || 'secondary';
     
-    let onlineCount = 0;
-    devices.forEach(device => {
-        if (device.status && device.status.toLowerCase() === 'online') {
-            onlineCount++;
-        }
-    });
+    // Use floorName if provided, otherwise fall back to "Floor X"
+    const displayFloorName = floorName || `Floor ${floorNum}`;
     
-    if (onlineDevicesEl) {
-        onlineDevicesEl.textContent = onlineCount;
-    }
+    roomCard.innerHTML = `
+        <div class="card-header bg-${color} text-white room-header">
+            <h5 class="mb-0">
+                <i class="fas fa-door-open me-2"></i>${roomName}
+            </h5>
+            <span class="badge bg-dark">${displayFloorName}</span>
+        </div>
+        <div class="card-body room-body"></div>
+        <div class="card-footer text-muted">
+            <small>
+                <i class="fas fa-microchip me-1"></i>
+                <span class="room-device-count">0</span> devices in this room
+            </small>
+        </div>
+    `;
     
-    if (offlineDevicesEl) {
-        offlineDevicesEl.textContent = devices.length - onlineCount;
-    }
-    
-    // Update device status indicators
-    devices.forEach(device => {
-        const deviceEl = document.querySelector(`[data-device-id="${device.device_id}"]`);
-        if (deviceEl) {
-            const statusIndicator = deviceEl.querySelector('.device-status');
-            if (statusIndicator) {
-                statusIndicator.className = `device-status ${device.status.toLowerCase()}`;
-                statusIndicator.setAttribute('data-status', device.status);
-            }
-            
-            // If device has a value, update it
-            if (device.value !== undefined) {
-                const valueEl = deviceEl.querySelector('.device-value');
-                if (valueEl) {
-                    valueEl.textContent = device.value;
-                }
-            }
-            
-            // If device has a last_seen timestamp, update it
-            if (device.last_seen) {
-                const lastSeenEl = deviceEl.querySelector('.device-last-seen');
-                if (lastSeenEl) {
-                    const date = new Date(device.last_seen);
-                    lastSeenEl.textContent = date.toLocaleString();
-                }
-            }
-        }
-    });
+    return roomCard;
 }
 
+// Helper function to create a device element based on its type
+function createDeviceElement(device, roomName, floorNum) {
+    const deviceCol = document.createElement('div');
+    deviceCol.className = 'col-md-6 mb-3 device-card-container';
+    
+    // Create base device card
+    const deviceCard = document.createElement('div');
+    deviceCard.className = 'card device-card h-100';
+    deviceCard.dataset.room = roomName.toLowerCase().replace(/\s+/g, '_');
+    deviceCard.dataset.floor = floorNum;
+    deviceCard.dataset.deviceType = device.type || 'unknown';
+    deviceCard.dataset.deviceId = device.device_id;
+    
+    // Get floor color mapping from existing data or use default
+    const floorColors = {
+        1: 'primary',
+        2: 'info',
+        3: 'success',
+        4: 'warning'
+    };
+    
+    const color = floorColors[floorNum] || 'secondary';
+    
+    // Get floor name with better fallback
+    const floorName = device.floor_name || `Floor ${floorNum}`;
+    
+    // Create card header with device name and status
+    const cardHeader = document.createElement('div');
+    cardHeader.className = 'card-header';
+    cardHeader.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center">
+            <h6 class="mb-0">
+                <span class="device-status status-${device.status || 'unknown'}" data-device-id="${device.device_id}"></span>
+                ${device.name || device.type || 'Device'}
+            </h6>
+            <span class="badge bg-${color} rounded-pill device-location">
+                <i class="fas fa-map-marker-alt me-1"></i>${roomName} (${floorName})
+            </span>
+        </div>
+    `;
+    
+    // Create card body with template based on device type
+    const cardBody = document.createElement('div');
+    cardBody.className = 'card-body d-flex flex-column';
+    
+    // Insert device template content based on type
+    const templateContent = getDeviceTemplateContent(device);
+    cardBody.innerHTML = templateContent;
+    
+    // Create card footer
+    const cardFooter = document.createElement('div');
+    cardFooter.className = 'card-footer';
+    cardFooter.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center">
+            <small class="text-muted device-status-text" data-device-id="${device.device_id}">${device.status || 'unknown'}</small>
+            <button class="btn btn-sm btn-outline-primary refresh-button" data-refresh-target="device-${device.device_id}" data-refresh-url="/api/devices/${device.device_id}/data?limit=1">
+                <i class="fas fa-sync-alt"></i>
+            </button>
+        </div>
+    `;
+    
+    // Assemble the card
+    deviceCard.appendChild(cardHeader);
+    deviceCard.appendChild(cardBody);
+    deviceCard.appendChild(cardFooter);
+    deviceCol.appendChild(deviceCard);
+    
+    return deviceCol;
+}
+
+// Helper function to generate device template content based on device type
+function getDeviceTemplateContent(device) {
+    const deviceType = device.type || 'generic';
+    let template = '';
+    
+    switch(deviceType.toLowerCase()) {
+        case 'temperature_sensor':
+        case 'temperature':
+            template = `
+                <div class="device-value-container">
+                    <div class="current-value">
+                        <div class="value-display" data-device-id="${device.device_id}">${device.value || '0'}</div>
+                        <div class="value-unit">°C</div>
+                    </div>
+                    <div class="value-indicator">
+                        <i class="fas fa-thermometer-half"></i>
+                    </div>
+                </div>
+                <div class="device-chart-container mt-3">
+                    <canvas id="chart-${device.device_id}" height="150"></canvas>
+                </div>
+            `;
+            break;
+            
+        case 'humidity_sensor':
+        case 'humidity':
+            template = `
+                <div class="device-value-container">
+                    <div class="current-value">
+                        <div class="value-display" data-device-id="${device.device_id}">${device.value || '0'}</div>
+                        <div class="value-unit">%</div>
+                    </div>
+                    <div class="value-indicator">
+                        <i class="fas fa-tint"></i>
+                    </div>
+                </div>
+                <div class="device-chart-container mt-3">
+                    <canvas id="chart-${device.device_id}" height="150"></canvas>
+                </div>
+            `;
+            break;
+            
+        case 'smart_refrigerator':
+            template = `
+                <div class="device-multi-value">
+                    <div class="multi-value-item">
+                        <div class="multi-value-label">Temperature</div>
+                        <div class="multi-value-display" data-device-id="${device.device_id}" data-value-type="temperature">${device.value || '4'}</div>
+                        <div class="multi-value-unit">°C</div>
+                    </div>
+                    <div class="multi-value-item">
+                        <div class="multi-value-label">Door</div>
+                        <div class="multi-value-display" data-device-id="${device.device_id}" data-value-type="door">${device.door_status || 'Closed'}</div>
+                    </div>
+                </div>
+                <div class="device-control mt-3">
+                    <div class="btn-group btn-group-sm w-100">
+                        <button class="btn btn-outline-primary device-control-btn" data-device-id="${device.device_id}" data-action="temp_down">
+                            <i class="fas fa-minus"></i> Temp
+                        </button>
+                        <button class="btn btn-outline-primary device-control-btn" data-device-id="${device.device_id}" data-action="temp_up">
+                            <i class="fas fa-plus"></i> Temp
+                        </button>
+                    </div>
+                </div>
+            `;
+            break;
+            
+        case 'smart_oven':
+            template = `
+                <div class="device-multi-value">
+                    <div class="multi-value-item">
+                        <div class="multi-value-label">Temperature</div>
+                        <div class="multi-value-display" data-device-id="${device.device_id}" data-value-type="temperature">${device.value || '0'}</div>
+                        <div class="multi-value-unit">°C</div>
+                    </div>
+                    <div class="multi-value-item">
+                        <div class="multi-value-label">Mode</div>
+                        <div class="multi-value-display" data-device-id="${device.device_id}" data-value-type="mode">${device.mode || 'Off'}</div>
+                    </div>
+                </div>
+                <div class="device-control mt-3">
+                    <div class="btn-group btn-group-sm w-100">
+                        <button class="btn btn-outline-primary device-control-btn" data-device-id="${device.device_id}" data-action="power">
+                            <i class="fas fa-power-off"></i>
+                        </button>
+                        <button class="btn btn-outline-primary device-control-btn" data-device-id="${device.device_id}" data-action="temp_up">
+                            <i class="fas fa-plus"></i> Temp
+                        </button>
+                        <button class="btn btn-outline-primary device-control-btn" data-device-id="${device.device_id}" data-action="mode">
+                            <i class="fas fa-sliders-h"></i> Mode
+                        </button>
+                    </div>
+                </div>
+            `;
+            break;
+            
+        case 'smoke_detector':
+            template = `
+                <div class="device-status-display text-center">
+                    <div class="status-icon ${device.status === 'alert' ? 'text-danger' : 'text-success'}">
+                        <i class="fas ${device.status === 'alert' ? 'fa-exclamation-triangle' : 'fa-check-circle'} fa-3x"></i>
+                    </div>
+                    <div class="status-text mt-2">
+                        <strong>${device.status === 'alert' ? 'ALERT' : 'Normal'}</strong>
+                    </div>
+                    <div class="status-description small text-muted">
+                        ${device.status === 'alert' ? 'Smoke detected!' : 'No smoke detected'}
+                    </div>
+                </div>
+                <div class="device-info mt-3">
+                    <div class="battery-level">
+                        <i class="fas fa-battery-full"></i> Battery: ${device.battery_level || '100'}%
+                    </div>
+                </div>
+            `;
+            break;
+            
+        case 'light':
+        case 'light_switch':
+        case 'smart_light':
+            template = `
+                <div class="device-toggle-container text-center">
+                    <div class="toggle-status-indicator mb-3 ${device.value === 'on' || device.value === true || device.value === 1 ? 'on' : 'off'}">
+                        <i class="fas fa-lightbulb fa-3x"></i>
+                    </div>
+                    <div class="form-check form-switch d-flex justify-content-center">
+                        <input class="form-check-input device-toggle me-2" type="checkbox" id="toggle-${device.device_id}" 
+                            data-device-id="${device.device_id}" ${device.value === 'on' || device.value === true || device.value === 1 ? 'checked' : ''}>
+                        <label class="form-check-label" for="toggle-${device.device_id}">
+                            ${device.value === 'on' || device.value === true || device.value === 1 ? 'ON' : 'OFF'}
+                        </label>
+                    </div>
+                </div>
+                ${device.type === 'smart_light' ? `
+                <div class="brightness-control mt-3">
+                    <label for="brightness-${device.device_id}" class="form-label d-flex justify-content-between">
+                        <span>Brightness</span>
+                        <span>${device.brightness || 50}%</span>
+                    </label>
+                    <input type="range" class="form-range" min="1" max="100" 
+                        value="${device.brightness || 50}" id="brightness-${device.device_id}" 
+                        data-device-id="${device.device_id}" data-control-type="brightness">
+                </div>
+                ` : ''}
+            `;
+            break;
+            
+        default:
+            // Generic template for any other device type
+            template = `
+                <div class="device-generic text-center">
+                    <div class="device-icon mb-3">
+                        <i class="fas fa-microchip fa-3x"></i>
+                    </div>
+                    <div class="device-value">
+                        Value: <span class="value-display" data-device-id="${device.device_id}">${device.value !== undefined ? device.value : 'N/A'}</span>
+                    </div>
+                    <div class="device-type small text-muted mt-2">
+                        Type: ${deviceType}
+                    </div>
+                </div>
+            `;
+    }
+    
+    // Add common elements to all templates
+    const commonElements = `
+        <div class="device-connections mt-auto">
+            <small class="text-muted">
+                <i class="fas fa-link me-1"></i> ID: ${device.device_id}
+            </small>
+        </div>
+        <div class="mt-2">
+            <p class="last-updated mb-0">
+                <small>Last update: 
+                    <span class="last-updated-time" data-device-id="${device.device_id}" 
+                        data-timestamp="${device.last_seen || device.timestamp}">
+                        ${formatTimestamp(device.last_seen || device.timestamp)}
+                    </span>
+                </small>
+            </p>
+        </div>
+    `;
+    
+    return template + commonElements;
+}
+
+// Helper function to update room device count
+function updateRoomDeviceCount(roomCard, count) {
+    const countElement = roomCard.querySelector('.room-device-count');
+    if (countElement) {
+        countElement.textContent = count;
+    }
+}
+
+// Helper function to update floor device count
+function updateFloorDeviceCount(floorContainer, floorNum, count) {
+    // Find floor button that matches this floor
+    const floorButton = document.querySelector(`.floor-button[data-floor="${floorNum}"]`);
+    if (floorButton) {
+        const countIndicator = floorButton.querySelector('.floor-indicator');
+        if (countIndicator) {
+            countIndicator.textContent = `${count} device${count === 1 ? '' : 's'}`;
+        }
+    }
+    
+    // Update floor header count if it exists
+    const floorHeader = floorContainer.querySelector('.floor-summary .badge');
+    if (floorHeader) {
+        const deviceCountText = floorHeader.innerHTML.split('<span')[0];
+        floorHeader.innerHTML = deviceCountText + 
+            `<span class="mx-1">|</span><i class="fas fa-microchip me-1"></i> ${count} Device${count === 1 ? '' : 's'}`;
+    }
+}
+
+// Helper function to create a floor navigation button with a specific name
+function createFloorNavButtonWithName(floorNum, floorName, deviceCount, parentContainer, isActive = false) {
+    // If parent not provided, find it
+    if (!parentContainer) {
+        parentContainer = document.querySelector('.floor-buttons');
+        if (!parentContainer) {
+            console.error('Floor buttons container not found');
+            return;
+        }
+    }
+    
+    // Create the floor button if it doesn't exist
+    const existingButton = parentContainer.querySelector(`[data-floor="${floorNum}"]`);
+    if (!existingButton) {
+        // Get floor color mapping from existing data or use default
+        const floorColors = {
+            1: 'primary',
+            2: 'info',
+            3: 'success',
+            4: 'warning'
+        };
+        
+        const color = floorColors[floorNum] || 'secondary';
+        
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = `btn btn-outline-${color} floor-button ${isActive ? 'active' : ''}`;
+        button.setAttribute('data-floor', floorNum);
+        button.setAttribute('data-floor-name', floorName);
+        button.innerHTML = `
+            ${floorName}
+            <span class="badge bg-${color} floor-indicator">${deviceCount} device${deviceCount !== 1 ? 's' : ''}</span>
+        `;
+        
+        // Add click handler
+        button.addEventListener('click', function() {
+            const floorNum = this.getAttribute('data-floor');
+            if (!floorNum) return;
+            
+            // Update active button
+            const floorButtons = document.querySelectorAll('.floor-button');
+            floorButtons.forEach(btn => btn.classList.remove('active'));
+            this.classList.add('active');
+            
+            // Show selected floor, hide others
+            const floorContainers = document.querySelectorAll('.floor-container');
+            floorContainers.forEach(container => {
+                if (container.id === `floor-${floorNum}`) {
+                    container.classList.add('active');
+                    container.style.display = 'block'; // Explicitly set display
+                } else {
+                    container.classList.remove('active');
+                    container.style.display = 'none';
+                }
+            });
+        });
+        
+        parentContainer.appendChild(button);
+    } else {
+        // Update device count on existing button
+        const indicator = existingButton.querySelector('.floor-indicator');
+        if (indicator) {
+            indicator.textContent = `${deviceCount} device${deviceCount !== 1 ? 's' : ''}`;
+        }
+        
+        // Update active state if needed
+        if (isActive && !existingButton.classList.contains('active')) {
+            const floorButtons = document.querySelectorAll('.floor-button');
+            floorButtons.forEach(btn => btn.classList.remove('active'));
+            existingButton.classList.add('active');
+        }
+    }
+}
+
+// Helper function to create a floor container with a specific name
+function createFloorContainerWithName(floorNum, floorName, deviceCount, isActive = false) {
+    const parentContainer = document.querySelector('.floor-nav-container');
+    if (!parentContainer) {
+        console.error('Parent container not found for floor creation');
+        return null;
+    }
+    
+    // Create the floor container if it doesn't exist
+    let floorContainer = document.getElementById(`floor-${floorNum}`);
+    if (!floorContainer) {
+        floorContainer = document.createElement('div');
+        floorContainer.id = `floor-${floorNum}`;
+        floorContainer.className = `floor-container ${isActive ? 'active' : ''}`;
+        floorContainer.style.display = isActive ? 'block' : 'none';
+        
+        // Get floor color mapping from existing data or use default
+        const floorColors = {
+            1: 'primary',
+            2: 'info',
+            3: 'success',
+            4: 'warning'
+        };
+        
+        const color = floorColors[floorNum] || 'secondary';
+        
+        // Add floor summary header
+        const summary = document.createElement('div');
+        summary.className = 'floor-summary mb-3';
+        summary.innerHTML = `
+            <h5 class="text-${color}">
+                <i class="fas fa-building me-2"></i>${floorName}
+                <span class="badge bg-${color} float-end">
+                    <i class="fas fa-door-open me-1"></i><span class="room-count">0</span> Rooms
+                    <span class="mx-1">|</span><i class="fas fa-microchip me-1"></i>${deviceCount} Device${deviceCount !== 1 ? 's' : ''}
+                </span>
+            </h5>
+        `;
+        floorContainer.appendChild(summary);
+        
+        // Insert after the floor nav
+        parentContainer.appendChild(floorContainer);
+    } else {
+        // Update device count on existing container
+        const deviceCountEl = floorContainer.querySelector('.floor-summary .badge .fa-microchip').nextSibling;
+        if (deviceCountEl) {
+            deviceCountEl.textContent = ` ${deviceCount} Device${deviceCount !== 1 ? 's' : ''}`;
+        }
+        
+        // Update active state if needed
+        if (isActive) {
+            floorContainer.classList.add('active');
+            floorContainer.style.display = 'block';
+            
+            // Ensure other floors are hidden
+            document.querySelectorAll('.floor-container').forEach(container => {
+                if (container.id !== `floor-${floorNum}`) {
+                    container.classList.remove('active');
+                    container.style.display = 'none';
+                }
+            });
+        }
+    }
+    
+    return floorContainer;
+}
+
+// Function to create the overall floor structure if it doesn't exist
+function createFloorStructure() {
+    // Find main container
+    const mainContainer = document.querySelector('.container') || document.querySelector('main');
+    if (!mainContainer) {
+        console.error('Cannot find main container');
+        return;
+    }
+    
+    // Check if floor nav container exists
+    let floorNavContainer = document.querySelector('.floor-nav-container');
+    if (!floorNavContainer) {
+        // Find insertion point after dashboard stats
+        const dashboardStats = document.querySelector('.dashboard-stats');
+        const insertAfter = dashboardStats || mainContainer.firstChild;
+        
+        // Create container
+        floorNavContainer = document.createElement('div');
+        floorNavContainer.className = 'card mb-4 floor-nav-container';
+        
+        // Create header
+        const header = document.createElement('div');
+        header.className = 'card-header floor-nav';
+        header.innerHTML = '<h5 class="mb-0">Floor Plan</h5>';
+        floorNavContainer.appendChild(header);
+        
+        // Create buttons container
+        const buttonsContainer = document.createElement('div');
+        buttonsContainer.className = 'btn-group mt-2 floor-buttons';
+        header.appendChild(buttonsContainer);
+        
+        // Insert into DOM after dashboard stats or at beginning
+        if (insertAfter && insertAfter.parentNode) {
+            insertAfter.parentNode.insertBefore(floorNavContainer, insertAfter.nextSibling);
+        } else {
+            mainContainer.insertBefore(floorNavContainer, mainContainer.firstChild);
+        }
+        
+        console.log('Created floor navigation structure');
+    }
+}
+
+// Add a new immediate execution to hide any "no devices" messages on page load
+(function hideNoDevicesMessageOnLoad() {
+    // Call once on script load
+    setTimeout(hideNoDevicesMessage, 0);
+    
+    // Also set up a MutationObserver to watch for the no devices message being added to the DOM
+    const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+                // Check if API shows devices exist
+                const apiDeviceCountEl = document.getElementById('api-device-count');
+                if (apiDeviceCountEl && parseInt(apiDeviceCountEl.textContent) > 0) {
+                    // If API says we have devices, hide any "no devices" messages
+                    hideNoDevicesMessage();
+                }
+            }
+        });
+    });
+    
+    // Start observing the document body for changes
+    observer.observe(document.body, { childList: true, subtree: true });
+    
+    // Also add event listeners for page load events
+    window.addEventListener('load', hideNoDevicesMessage);
+    document.addEventListener('DOMContentLoaded', hideNoDevicesMessage);
+})();
+
+// Initialize charts
 function initializeCharts() {
     // Find all chart containers
     const chartContainers = document.querySelectorAll('[data-chart-device]');
@@ -670,343 +1744,117 @@ function verifyDeviceContent() {
     updateDeviceCountsDisplay(deviceCount);
 }
 
-// Add new function to check home access permissions
-// Update the checkHomeAccess function to use the existing endpoints from app.py rather than creating duplicate logic
-function checkHomeAccess() {
-    // Check if we're viewing the correct home - related to HomeAccess in models.py
-    // Get home_id from URL
-    const urlParams = new URLSearchParams(window.location.search);
-    const homeId = urlParams.get('home_id');
-    
-    // Use the existing API endpoint from app.py - '/api/user/homes'
-    fetch('/api/user/homes', {
-        method: 'GET',
-        credentials: 'same-origin',
-        headers: {
-            'Accept': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest'
-        }
-    })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error(`HTTP error! Status: ${response.status}`);
-        }
-        return response.json();
-    })
-    .then(data => {
-        if (data.homes && Array.isArray(data.homes)) {
-            if (data.homes.length === 0) {
-                if (window.showToast) {
-                    window.showToast('You don\'t have any homes assigned to your account.', 'warning');
-                }
-                return;
-            }
-            
-            // Check if current home_id is in user's accessible homes
-            if (homeId) {
-                const currentHome = data.homes.find(h => h.id.toString() === homeId);
-                if (!currentHome) {
-                    if (window.showToast) {
-                        window.showToast('You don\'t have access to this home. Please select another home.', 'warning');
-                    }
-                    
-                    // Suggest alternative homes - redirect to the first home
-                    if (data.homes.length > 0) {
-                        const firstHomeId = data.homes[0].id;
-                        
-                        // Redirect automatically 
-                        window.location.href = `/dashboard?home_id=${firstHomeId}`;
-                    }
-                }
-            } else if (data.homes.length > 0) {
-                // No home_id specified, but user has homes - use the first one
-                const firstHomeId = data.homes[0].id;
-                
-                // Redirect automatically 
-                window.location.href = `/dashboard?home_id=${firstHomeId}`;
-            }
-        }
-    })
-    .catch(error => {
-        console.error('Error checking home access:', error);
-    });
-}
-
-// Helper to update device counts in the dashboard stats
-function updateDeviceCountsDisplay(totalCount) {
-    if (typeof totalCount !== 'number' || isNaN(totalCount)) {
-        console.error('Invalid device count:', totalCount);
+// Add the missing updateDeviceStatistics function
+function updateDeviceStatistics(devices) {
+    if (!devices || !Array.isArray(devices)) {
+        console.error('Invalid device data provided to updateDeviceStatistics:', devices);
         return;
     }
 
-    // Update the "Connected Devices" stat card
-    const totalDevicesEl = document.getElementById('totalDevices');
-    if (totalDevicesEl) {
-        totalDevicesEl.textContent = totalCount;
-    } else {
-        console.log('totalDevices element not found');
-    }
+    console.log(`Updating UI for ${devices.length} devices from API`);
     
-    // For online devices, we'll estimate based on the total
+    // Count online devices
+    const onlineDevices = devices.filter(device => 
+        device.status && (device.status.toLowerCase() === 'online' || device.status.toLowerCase() === 'active')
+    );
+    
+    // Update online device count in UI
     const onlineDevicesEl = document.getElementById('onlineDevices');
     if (onlineDevicesEl) {
-        // Default to showing 80% of devices as online
-        const onlineCount = Math.ceil(totalCount * 0.8);
-        onlineDevicesEl.textContent = onlineCount;
-    } else {
-        console.log('onlineDevices element not found');
+        onlineDevicesEl.textContent = onlineDevices.length;
     }
     
-    console.log(`Updated device count display: total=${totalCount}`);
-}
-
-// Helper function to find an element containing specific text
-function findElementByText(selector, text) {
-    const elements = document.querySelectorAll(selector);
-    for (let i = 0; i < elements.length; i++) {
-        if (elements[i].textContent.includes(text)) {
-            return elements[i];
-        }
-    }
-    return null;
-}
-
-// Add proper Element.prototype.matches polyfill if needed
-if (!Element.prototype.matches) {
-    Element.prototype.matches = Element.prototype.msMatchesSelector || 
-                                Element.prototype.webkitMatchesSelector;
-}
-
-// Add NodeList forEach polyfill if needed
-if (window.NodeList && !NodeList.prototype.forEach) {
-    NodeList.prototype.forEach = Array.prototype.forEach;
-}
-
-// Enhanced function to ensure dashboard stats visibility with better debugging and dynamic creation
-function ensureDashboardStatsVisibility() {
-    // First check if we are on a dashboard with device data
-    const deviceCards = document.querySelectorAll('.device-card');
-    const deviceCardContainers = document.querySelectorAll('.device-card-container');
-    const floorContainers = document.querySelectorAll('.floor-container');
-    
-    // Get dashboard stats element
-    let dashboardStats = document.querySelector('.dashboard-stats');
-    
-    // Get the no devices alert if it exists
-    const noDevicesAlert = document.querySelector('.alert.alert-info');
-    if (noDevicesAlert) {
-        console.log(`Found "no devices" message: "${noDevicesAlert.textContent.trim()}"`);
-        console.log(`No devices alert display state: ${window.getComputedStyle(noDevicesAlert).display}`);
-    } else {
-        console.log('No "no devices" alert found in DOM');
-    }
-    
-    // Multiple ways to detect if we have devices
-    const totalDevices = deviceCards.length;
-    let hasDevices = totalDevices > 0;
-    
-    // Also check total_devices from server-side rendered variable
-    const totalDeviceValue = document.getElementById('totalDevices');
-    if (totalDeviceValue && parseInt(totalDeviceValue.textContent) > 0) {
-        hasDevices = true;
-        console.log(`Detected devices from counter element: ${totalDeviceValue.textContent}`);
-    }
-    
-    // Check if device containers exist even if cards aren't properly rendered
-    const containerCount = deviceCardContainers.length;
-    if (containerCount > 0) {
-        console.log(`Found ${containerCount} device container elements`);
-        hasDevices = true;
-    }
-    
-    // Check total_devices from debug script
-    let scriptDeviceCount = 0;
-    try {
-        const scriptContents = Array.from(document.querySelectorAll('script'))
-            .map(s => s.textContent)
-            .find(text => text && text.includes('Total devices:'));
-        
-        if (scriptContents) {
-            const match = scriptContents.match(/Total devices: (\d+)/);
-            if (match && parseInt(match[1]) > 0) {
-                scriptDeviceCount = parseInt(match[1]);
-                hasDevices = true;
-                console.log(`Verified from debug script: ${scriptDeviceCount} devices exist`);
-            } else {
-                console.log('Debug script found but no device count matched');
-            }
-        } else {
-            console.log('No debug script with device count found');
-        }
-    } catch (e) {
-        console.error('Error checking debug info:', e);
-    }
-    
-    // Try to get device count from API if we haven't determined we have devices yet
-    if (!hasDevices && !window.deviceApiChecked) {
-        console.log('No devices found in DOM, checking API directly');
-        window.deviceApiChecked = true;
-        
-        // Fetch device data directly from API
-        fetch('/api/user/devices', {
-            method: 'GET',
-            credentials: 'same-origin',
-            headers: {
-                'Accept': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest'
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success && data.devices && data.devices.length > 0) {
-                console.log(`API confirms ${data.devices.length} devices exist, forcing display fix`);
-                forceShowDevicesUI(data.devices.length);
-            } else {
-                console.log('API confirms no devices exist');
-            }
-        })
-        .catch(error => {
-            console.error('Error checking device API:', error);
-        });
-    }
-    
-    console.log(`Device visibility check summary: hasDevices=${hasDevices}, totalDevices=${totalDevices}, scriptDeviceCount=${scriptDeviceCount}`);
-    
-    if (hasDevices && dashboardStats) {
-        // Force the dashboard stats to be visible
-        dashboardStats.style.display = 'flex';
-        console.log('Forced dashboard stats to be visible');
-        
-        // Hide the no devices message if it exists
-        if (noDevicesAlert && (
-            noDevicesAlert.textContent.includes("doesn't have any devices registered yet") ||
-            noDevicesAlert.textContent.includes("No devices found") ||
-            noDevicesAlert.textContent.includes("no devices")
-        )) {
-            noDevicesAlert.style.display = 'none';
-            console.log('Hidden incorrect "no devices" message');
-        }
-        
-        // Make sure all floor containers are visible
-        floorContainers.forEach(container => {
-            if (container.classList.contains('active') && container.style.display === 'none') {
-                container.style.display = 'block';
-                console.log('Fixed visibility of floor container:', container.id);
-            }
-        });
-        
-        // Update device count stats if needed
-        const displayCount = Math.max(
-            totalDevices, 
-            parseInt(totalDeviceValue?.textContent || '0'),
-            scriptDeviceCount
-        );
-        updateDeviceCountsDisplay(displayCount);
-        
-        // Show toast notification if we fixed a visibility issue
-        if (window.showToast && noDevicesAlert && window.getComputedStyle(noDevicesAlert).display !== 'none') {
-            window.showToast('Fixed UI display issue - devices exist but were not being shown', 'success');
-        }
-    }
-    else if (noDevicesAlert) {
-        // We really don't have devices, make sure the message is visible
-        noDevicesAlert.style.display = 'block';
-        if (dashboardStats) {
-            dashboardStats.style.display = 'none';
-        }
-    }
-}
-
-// New function to force show the UI when devices exist according to API
-function forceShowDevicesUI(deviceCount) {
-    console.log(`Forcing UI to show ${deviceCount} devices`);
-    
-    // Get key UI elements
-    const dashboardStats = document.querySelector('.dashboard-stats');
-    const noDevicesAlert = document.querySelector('.alert.alert-info');
-    const floorContainers = document.querySelectorAll('.floor-container');
-    
-    // Hide the "no devices" message
-    if (noDevicesAlert) {
-        noDevicesAlert.style.display = 'none';
-        console.log('Hidden "no devices" message');
-    }
-    
-    // Show the dashboard stats
-    if (dashboardStats) {
-        dashboardStats.style.display = 'flex';
-        console.log('Forced dashboard stats visible');
-        
-        // Update total devices count
-        const totalDevicesEl = document.getElementById('totalDevices');
-        if (totalDevicesEl) {
-            totalDevicesEl.textContent = deviceCount;
-        }
-        
-        // Update online devices count (estimate)
-        const onlineDevicesEl = document.getElementById('onlineDevices');
-        if (onlineDevicesEl) {
-            onlineDevicesEl.textContent = Math.ceil(deviceCount * 0.8); // Assume 80% online
-        }
-    }
-    
-    // Show floor containers
-    if (floorContainers.length > 0) {
-        floorContainers.forEach(container => {
-            if (container.classList.contains('active')) {
-                container.style.display = 'block';
-            }
-        });
-        console.log('Made floor containers visible');
-    } else {
-        console.log('No floor containers found');
-    }
-    
-    // Show toast with refresh suggestion
-    if (window.showToast) {
-        window.showToast(`API shows ${deviceCount} devices exist but UI isn't displaying them correctly. You may need to refresh the page.`, 'warning');
-    }
-    
-    // Add a refresh button directly to the page
-    const refreshButton = document.createElement('div');
-    refreshButton.className = 'text-center mt-3 mb-3';
-    refreshButton.innerHTML = `
-        <div class="alert alert-warning">
-            <p><strong>Display Issue Detected:</strong> The system found ${deviceCount} devices in your home, but they're not showing correctly in the UI.</p>
-            <button class="btn btn-primary" onclick="window.location.reload()">Refresh Page</button>
-        </div>
-    `;
-    
-    // Insert after dashboard stats or after the alert
-    if (dashboardStats) {
-        dashboardStats.parentNode.insertBefore(refreshButton, dashboardStats.nextSibling);
-    } else if (noDevicesAlert) {
-        noDevicesAlert.parentNode.insertBefore(refreshButton, noDevicesAlert.nextSibling);
-    } else {
-        // If neither exists, add to the main content
-        const content = document.querySelector('.container') || document.querySelector('main') || document.body;
-        content.appendChild(refreshButton);
-    }
-}
-
-// Add a DOMContentLoaded listener specifically for dashboard stats visibility with more robust timing
-document.addEventListener('DOMContentLoaded', function() {
-    // Check immediately
-    console.log('DOMContentLoaded - Checking dashboard stats visibility');
-    ensureDashboardStatsVisibility();
-    
-    // Check after a short delay to catch template rendering
-    setTimeout(function() {
-        console.log('First timeout check for dashboard stats visibility');
-        ensureDashboardStatsVisibility();
-        
-        // Check again after devices might have loaded via API
-        setTimeout(function() {
-            console.log('Second timeout check for dashboard stats visibility');
-            ensureDashboardStatsVisibility();
+    // Update each device's UI with current data
+    devices.forEach(device => {
+        if (device.device_id) {
+            // Update device value display
+            updateDeviceUI(device.device_id, device);
             
-            // Final check after all async operations should be complete
-            setTimeout(ensureDashboardStatsVisibility, 2000);
-        }, 1000);
-    }, 100);
-});
+            // Update device status
+            if (device.status) {
+                updateDeviceStatus(device.device_id, device.status);
+            }
+            
+            // Update toggle switches for devices with on/off state
+            if (device.value === 'on' || device.value === true || device.value === 1) {
+                const toggle = document.querySelector(`.device-toggle[data-device-id="${device.device_id}"]`);
+                if (toggle && !toggle.checked) {
+                    toggle.checked = true;
+                    // Update toggle label if it exists
+                    const label = toggle.nextElementSibling;
+                    if (label) {
+                        label.textContent = 'ON';
+                    }
+                }
+            }
+            
+            // Update chart data if this device has a chart
+            const chartCanvas = document.getElementById(`chart-${device.device_id}`);
+            if (chartCanvas && window.smartHome.deviceData[device.device_id]) {
+                // Update the chart with the most recent data point
+                if (device.value !== undefined) {
+                    updateChartWithNewData(device.device_id, {
+                        value: device.value,
+                        timestamp: device.timestamp || device.last_seen || new Date().toISOString()
+                    });
+                }
+            }
+        }
+    });
+    
+    // Update total device count
+    updateDeviceCountsDisplay(devices.length);
+    
+    console.log('Device statistics updated successfully');
+}
+
+// Add the missing updateDeviceCountsDisplay function
+function updateDeviceCountsDisplay(count) {
+    // Update the total devices counter
+    const totalDevicesEl = document.getElementById('totalDevices');
+    if (totalDevicesEl) {
+        totalDevicesEl.textContent = count;
+    }
+    
+    // Update device count in API counter if it exists
+    const apiDeviceCountEl = document.getElementById('api-device-count');
+    if (apiDeviceCountEl) {
+        apiDeviceCountEl.textContent = count;
+    }
+    
+    // Update any floor indicators with the total count
+    document.querySelectorAll('.floor-indicator').forEach(indicator => {
+        const floorButton = indicator.closest('.floor-button');
+        if (floorButton) {
+            const floorNum = floorButton.getAttribute('data-floor');
+            if (floorNum) {
+                // Count devices specifically on this floor
+                const floorDevices = document.querySelectorAll(`.device-card[data-floor="${floorNum}"]`);
+                const floorDeviceCount = floorDevices.length;
+                
+                // Only update if we found devices specifically for this floor
+                if (floorDeviceCount > 0) {
+                    indicator.textContent = `${floorDeviceCount} device${floorDeviceCount !== 1 ? 's' : ''}`;
+                }
+            }
+        }
+    });
+    
+    // Update any other elements that might display the device count
+    document.querySelectorAll('.device-count-display').forEach(element => {
+        element.textContent = count;
+    });
+    
+    // If we have devices, make sure the dashboard stats are visible
+    if (count > 0) {
+        const dashboardStats = document.querySelector('.dashboard-stats');
+        if (dashboardStats) {
+            dashboardStats.style.display = 'flex';
+        }
+        
+        // Also make sure "no devices" message is hidden
+        hideNoDevicesMessage();
+    }
+    
+    console.log(`Updated device counts to: ${count}`);
+}

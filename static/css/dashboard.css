@@ -1,6 +1,10 @@
 /* Dashboard specific styles */
 .dashboard-header {
-  margin-bottom: 2rem;
+  margin-bottom: 2.5rem;
+  background-color: white;
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow);
+  padding: 2rem;
 }
 
 .dashboard-header h1 {
@@ -11,42 +15,60 @@
 
 .dashboard-header p {
   color: var(--gray-color);
+  max-width: 800px;
 }
 
 .dashboard-stats {
-  margin-bottom: 2rem;
+  margin-bottom: 2.5rem;
 }
 
 .stat-card {
   background-color: #fff;
   border-radius: var(--border-radius);
   box-shadow: var(--box-shadow);
-  padding: 1.5rem;
+  padding: 1.75rem;
   text-align: center;
   height: 100%;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
 }
 
 .stat-card-icon {
   font-size: 2.5rem;
-  margin-bottom: 1rem;
+  margin-bottom: 1.25rem;
+  color: var(--primary-color);
+  background-color: rgba(67, 97, 238, 0.1);
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .stat-card-title {
   font-size: 0.9rem;
   color: var(--gray-color);
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 1.5px;
+  font-weight: 500;
 }
 
 .stat-card-value {
-  font-size: 2rem;
+  font-size: 2.25rem;
   font-weight: 700;
   margin-top: 0.5rem;
   color: var(--dark-color);
 }
 
 .devices-container {
-  margin-bottom: 2rem;
+  margin-bottom: 2.5rem;
 }
 
 .device-detail {
@@ -104,7 +126,7 @@
   position: relative;
   display: inline-block;
   width: 60px;
-  height: 34px;
+  height: 30px;
 }
 
 .device-toggle input {
@@ -122,19 +144,20 @@
   bottom: 0;
   background-color: var(--gray-color);
   transition: var(--transition);
-  border-radius: 34px;
+  border-radius: 30px;
 }
 
 .device-toggle-slider:before {
   position: absolute;
   content: '';
-  height: 26px;
-  width: 26px;
+  height: 22px;
+  width: 22px;
   left: 4px;
   bottom: 4px;
   background-color: white;
   transition: var(--transition);
   border-radius: 50%;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
 }
 
 .device-toggle input:checked + .device-toggle-slider {
@@ -142,12 +165,13 @@
 }
 
 .device-toggle input:checked + .device-toggle-slider:before {
-  transform: translateX(26px);
+  transform: translateX(30px);
 }
 
 .range-control {
   width: 100%;
   margin: 1rem 0;
+  height: 6px;
 }
 
 .chart-header {

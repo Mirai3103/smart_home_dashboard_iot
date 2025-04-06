@@ -1,0 +1,81 @@
+<div class="card device-card h-100">
+  <div class="card-header">
+    <div class="d-flex justify-content-between align-items-center">
+      <h6 class="mb-0">
+        <span class="device-status status-{{ device.status }}" data-device-id="{{ device.device_id }}"></span>
+        {{ device.name }}
+      </h6>
+      <span class="badge bg-success">Car Charger</span>
+    </div>
+  </div>
+  <div class="card-body d-flex flex-column">
+    <div class="text-center mb-3">
+      <i class="fas fa-charging-station device-icon" 
+         style="color: {% if device.state %}#198754{% else %}#6c757d{% endif %}; font-size: 2.5rem;"
+         data-device-id="{{ device.device_id }}"></i>
+    </div>
+    
+    <div class="alert alert-{% if device.state %}success{% else %}secondary{% endif %} text-center">
+      <strong>Status: {{ 'Charging' if device.state else 'Not Charging' }}</strong>
+    </div>
+    
+    <div class="progress mb-3">
+      <div class="progress-bar bg-success" role="progressbar" 
+           style="width: {{ device.charge_level|default(0) }}%;" 
+           aria-valuenow="{{ device.charge_level|default(0) }}" 
+           aria-valuemin="0" 
+           aria-valuemax="100">
+        {{ device.charge_level|default(0) }}%
+      </div>
+    </div>
+    
+    <div class="form-check form-switch mb-3">
+      <input class="form-check-input" type="checkbox" 
+             id="toggle-{{ device.device_id }}" 
+             {% if device.state %}checked{% endif %}
+             data-device-id="{{ device.device_id }}">
+      <label class="form-check-label" for="toggle-{{ device.device_id }}">
+        Enable Charging
+      </label>
+    </div>
+    
+    <div class="mb-3">
+      <label class="form-label small">Charge Rate</label>
+      <select class="form-select form-select-sm" 
+              data-device-id="{{ device.device_id }}"
+              data-action="set_charge_rate">
+        <option value="slow" {% if device.charge_rate == 'slow' %}selected{% endif %}>Slow (Economy)</option>
+        <option value="medium" {% if device.charge_rate == 'medium' %}selected{% endif %}>Medium (Standard)</option>
+        <option value="fast" {% if device.charge_rate == 'fast' %}selected{% endif %}>Fast (Rapid)</option>
+      </select>
+    </div>
+    
+    <div class="mt-auto">
+      <div class="d-flex justify-content-between align-items-center mt-3">
+        <small class="text-muted">Power: 
+          {{ device.power|default('0') }} kW
+        </small>
+        <small class="text-muted">Estimated Time: 
+          {{ device.time_remaining|default('00:00') }}
+        </small>
+      </div>
+      <p class="last-updated mb-0 mt-2">
+        <small>Last update: 
+          <span class="last-updated-time" data-device-id="{{ device.device_id }}" data-timestamp="{{ device.last_seen }}">
+            {{ device.last_seen|default('never', true) }}
+          </span>
+        </small>
+      </p>
+    </div>
+    </div>
+  <div class="card-footer">
+    <div class="d-flex justify-content-between align-items-center">
+      <small class="text-muted device-status-text" data-device-id="{{ device.device_id }}">{{ device.status }}</small>
+      <button class="btn btn-sm btn-outline-primary refresh-button" 
+              data-refresh-target="device-{{ device.id }}" 
+              data-refresh-url="/api/devices/{{ device.device_id }}/data?limit=1">
+        <i class="fas fa-sync-alt"></i>
+      </button>
+    </div>
+  </div>
+</div>
